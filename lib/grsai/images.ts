@@ -46,7 +46,7 @@ function isHttpsUrl(value: string) {
   }
 }
 
-function normalizeImageJob(response: ProviderImageResponse): ProviderImageJob {
+function normalizeImageJob(response: ProviderImageResponse, allowPendingResult = false): ProviderImageJob {
   if (response.failure_reason === "input_moderation" || response.failure_reason === "output_moderation") {
     throw new GrsaiError("moderation", "图片未通过内容审核", 422);
   }
@@ -68,7 +68,7 @@ function normalizeImageJob(response: ProviderImageResponse): ProviderImageJob {
     })
     : [];
 
-  if (status === "succeeded" && results.length === 0) {
+  if (status === "succeeded" && results.length === 0 && !allowPendingResult) {
     throw new GrsaiError("upstream", "图片生成结果尚不可用，请继续查询", 502);
   }
 
@@ -101,7 +101,7 @@ export async function submitImageGeneration(input: SubmitImageInput, fetchImpl: 
     },
     fetchImpl,
   );
-  return normalizeImageJob(response);
+  return normalizeImageJob(response, true);
 }
 
 export async function getImageGenerationResult(id: string, fetchImpl: typeof fetch = fetch) {

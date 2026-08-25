@@ -145,6 +145,27 @@ it("normalizes immediate provider success to running until status signs the resu
   });
 });
 
+it("keeps an incomplete immediate success resumable under the paid provider job id", async () => {
+  vi.mocked(submitImageGeneration).mockResolvedValue({
+    id: "job-1",
+    status: "succeeded",
+    progress: 100,
+    results: [],
+  });
+
+  const response = await POST(generationRequest(generationForm()));
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    task: {
+      planItemId: "1",
+      providerJobId: "job-1",
+      status: "running",
+      progress: 100,
+    },
+  });
+});
+
 it("returns 503 without calling the provider when the API key is absent", async () => {
   delete process.env.GRSAI_API_KEY;
 

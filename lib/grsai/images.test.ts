@@ -40,6 +40,30 @@ it("submits gpt-image-2 with reference images and JSON reply mode", async () => 
   expect(job).toEqual({ id: "job-1", status: "running", progress: 0, results: [] });
 });
 
+it("preserves the provider job id when immediate success has no usable result", async () => {
+  const fetchImpl = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({ id: "job-1", status: "succeeded", results: [] }),
+      { status: 200 },
+    ),
+  );
+
+  await expect(submitImageGeneration(
+    {
+      images: ["data:image/webp;base64,AA=="],
+      prompt: "白底主图",
+      aspectRatio: "1024x1024",
+      quality: "auto",
+    },
+    fetchImpl,
+  )).resolves.toEqual({
+    id: "job-1",
+    status: "succeeded",
+    progress: 100,
+    results: [],
+  });
+});
+
 it("normalizes a successful result query", async () => {
   const fetchImpl = vi.fn().mockResolvedValue(
     new Response(

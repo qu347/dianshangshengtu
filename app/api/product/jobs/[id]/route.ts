@@ -38,6 +38,16 @@ export async function GET(_request: Request, context: RouteContext) {
       },
     });
   } catch (error) {
+    if (error instanceof GrsaiError && error.code === "moderation") {
+      return Response.json({
+        task: {
+          providerJobId: id,
+          status: "failed",
+          progress: 0,
+          error: "图片未通过内容审核",
+        },
+      });
+    }
     if (error instanceof GrsaiError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
