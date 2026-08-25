@@ -18,6 +18,9 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const job = await getImageGenerationResult(id);
     const result = job.status === "succeeded" ? job.results[0] : undefined;
+    if (job.status === "succeeded" && !result) {
+      throw new GrsaiError("upstream", "图片生成结果尚不可用，请继续查询", 502);
+    }
     const signedResult = result
       ? {
           resultUrl: result.url,

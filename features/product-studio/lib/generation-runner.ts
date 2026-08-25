@@ -22,11 +22,26 @@ export async function pollGenerationJob(input: {
   const timeoutMs = input.timeoutMs ?? 10 * 60 * 1000;
   const startedAt = now();
   let delay = 2000;
+  let lastProgress = 0;
 
   while (true) {
     input.signal?.throwIfAborted();
-    const task = await input.api.status(input.providerJobId, input.planItemId);
+    let task: GenerationTask;
+    try {
+      task = await input.api.status(input.providerJobId, input.planItemId);
+    } catch {
+      const resumable: GenerationTask = {
+        planItemId: input.planItemId,
+        providerJobId: input.providerJobId,
+        status: "timed_out",
+        progress: lastProgress,
+        error: "查询生图任务失败，可继续查询",
+      };
+      input.onTaskChange(resumable);
+      return resumable;
+    }
     input.onTaskChange(task);
+    lastProgress = task.progress;
 
     if (task.status !== "running") return task;
     if (now() - startedAt >= timeoutMs) {

@@ -19,11 +19,24 @@ Open `http://localhost:3000/product-studio` in your browser.
 The automated browser test mocks every product API endpoint and does not call Grsai:
 
 ```powershell
+npx playwright install chromium
 npm test
 npm run lint
 npm run build
 npm run test:e2e
 ```
+
+### System Edge fallback
+
+If the official Playwright Chromium download is unavailable and Microsoft Edge is already installed, run the same mocked browser test with the system Edge Chromium channel:
+
+```powershell
+$env:PLAYWRIGHT_CHANNEL = "msedge"
+npm run test:e2e
+Remove-Item Env:PLAYWRIGHT_CHANNEL
+```
+
+Leave `PLAYWRIGHT_CHANNEL` unset for the normal, officially installed Playwright Chromium run.
 
 ## Real smoke test
 

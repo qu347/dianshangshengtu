@@ -38,6 +38,14 @@ export function buildGenerationPrompt(item: PlanItem, settings: GenerationSettin
   ].filter(Boolean).join("\n");
 }
 
+function isHttpsUrl(value: string) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function normalizeImageJob(response: ProviderImageResponse): ProviderImageJob {
   if (response.failure_reason === "input_moderation" || response.failure_reason === "output_moderation") {
     throw new GrsaiError("moderation", "图片未通过内容审核", 422);
@@ -56,9 +64,13 @@ function normalizeImageJob(response: ProviderImageResponse): ProviderImageJob {
       if (typeof result !== "object" || result === null || !("url" in result) || typeof result.url !== "string") {
         return [];
       }
-      return [{ url: result.url }];
+      return isHttpsUrl(result.url) ? [{ url: result.url }] : [];
     })
     : [];
+
+  if (status === "succeeded" && results.length === 0) {
+    throw new GrsaiError("upstream", "图片生成结果尚不可用，请继续查询", 502);
+  }
 
   return {
     id: response.id,

@@ -6,6 +6,7 @@ import {
   type GenerationTask,
   type PlanItem,
 } from "../model";
+import { productRequestHeaders } from "@/lib/product-upload";
 
 export async function analyzeProductClient(input: {
   files: File[];
@@ -19,7 +20,11 @@ export async function analyzeProductClient(input: {
   form.append("productName", input.productName);
   form.append("requirements", input.requirements);
 
-  const response = await fetch("/api/product/analyze", { method: "POST", body: form });
+  const response = await fetch("/api/product/analyze", {
+    method: "POST",
+    body: form,
+    headers: productRequestHeaders,
+  });
   const body = await response.json();
   if (!response.ok) throw new Error(body.error ?? "分析失败，请稍后重试");
 
@@ -45,7 +50,11 @@ export async function submitGenerationClient(input: {
   form.append("settings", JSON.stringify(input.settings));
   form.append("item", JSON.stringify(input.item));
 
-  const response = await fetch("/api/product/generate", { method: "POST", body: form });
+  const response = await fetch("/api/product/generate", {
+    method: "POST",
+    body: form,
+    headers: productRequestHeaders,
+  });
   const body = await response.json();
   if (!response.ok) throw new Error(body.error ?? "提交生图任务失败");
 

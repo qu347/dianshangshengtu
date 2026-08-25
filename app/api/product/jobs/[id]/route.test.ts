@@ -67,6 +67,24 @@ it("does not sign running jobs", async () => {
   });
 });
 
+it("rejects provider success without a result instead of emitting incomplete UI success", async () => {
+  vi.mocked(getImageGenerationResult).mockResolvedValue({
+    id: "job-1",
+    status: "succeeded",
+    progress: 100,
+    results: [],
+  });
+
+  const response = await GET(
+    new Request("http://localhost/api/product/jobs/job-1"),
+    { params: Promise.resolve({ id: "job-1" }) },
+  );
+
+  expect(response.status).toBe(502);
+  expect(await response.json()).toEqual({ error: "图片生成结果尚不可用，请继续查询" });
+  expect(signDownloadUrl).not.toHaveBeenCalled();
+});
+
 it("returns 503 when either server secret is missing", async () => {
   delete process.env.DOWNLOAD_TOKEN_SECRET;
 

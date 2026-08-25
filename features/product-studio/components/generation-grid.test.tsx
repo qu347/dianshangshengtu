@@ -31,3 +31,11 @@ it("disables bulk download without a successful signed result", () => {
 
   expect(screen.getByRole("button", { name: "下载全部" })).toBeDisabled();
 });
+
+it("warns that result links are temporary and should be downloaded in this session", () => {
+  render(<GenerationGrid items={analysisWithTwoItems.plan} tasks={[
+    { planItemId: "1", status: "succeeded", progress: 100, resultUrl: "https://cdn/1.png", downloadToken: "token" },
+  ]} onRetry={vi.fn()} onContinuePolling={vi.fn()} onDownload={vi.fn()} onDownloadAll={vi.fn()} />);
+
+  expect(screen.getByText("结果链接为临时链接，请在当前会话内及时下载保存。")).toBeInTheDocument();
+});

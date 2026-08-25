@@ -59,6 +59,21 @@ it("normalizes a successful result query", async () => {
   });
 });
 
+it.each([
+  ["has no result", []],
+  ["has a malformed result URL", [{ url: "not a url" }]],
+  ["has a non-HTTPS result URL", [{ url: "http://cdn.example/result.png" }]],
+])("rejects provider success that %s as a safe resumable upstream error", async (_label, results) => {
+  const fetchImpl = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ id: "job-1", status: "succeeded", results }), { status: 200 }),
+  );
+
+  await expect(getImageGenerationResult("job-1", fetchImpl)).rejects.toMatchObject({
+    code: "upstream",
+    message: "图片生成结果尚不可用，请继续查询",
+  });
+});
+
 it("maps provider moderation failure to a safe error", async () => {
   const fetchImpl = vi.fn().mockResolvedValue(
     new Response(

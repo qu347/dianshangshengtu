@@ -26,6 +26,16 @@ export type ProductAnalysis = z.infer<typeof ProductAnalysisSchema>;
 
 export const GenerationTaskSchema = z.object({
   planItemId: z.string().min(1), providerJobId: z.string().min(1).optional(), status: z.enum(["queued", "submitting", "running", "succeeded", "failed", "timed_out"]), progress: z.number().min(0).max(100), resultUrl: z.string().url().optional(), downloadToken: z.string().min(1).optional(), error: z.string().min(1).optional(),
+}).superRefine((task, context) => {
+  if (task.status === "succeeded" && (!task.resultUrl || !task.downloadToken)) {
+    context.addIssue({ code: "custom", message: "成功任务必须包含结果地址和下载令牌" });
+  }
+  if (task.status === "failed" && !task.error) {
+    context.addIssue({ code: "custom", message: "失败任务必须包含错误说明" });
+  }
+  if (task.status === "timed_out" && !task.providerJobId) {
+    context.addIssue({ code: "custom", message: "可继续查询的任务必须包含服务商任务 ID" });
+  }
 });
 export type GenerationTask = z.infer<typeof GenerationTaskSchema>;
 

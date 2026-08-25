@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer } from "react";
+import { useReducer, useRef, useState } from "react";
 import { analyzeProductClient, getGenerationStatusClient, submitGenerationClient, type ProductStudioApi } from "../lib/client-api";
 import { downloadAllResults, downloadResult } from "../lib/downloads";
 import { pollGenerationJob, runGenerationBatch } from "../lib/generation-runner";
@@ -22,14 +22,32 @@ const defaultProductStudioApi: ProductStudioApi = {
 
 export function ProductStudio({ api = defaultProductStudioApi }: { api?: ProductStudioApi }) {
   const [state, dispatch] = useReducer(productStudioReducer, initialProductStudioState);
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [generationBusy, setGenerationBusy] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+  const analysisBusyRef = useRef(false);
+  const analysisEpochRef = useRef(0);
+  const generationBusyRef = useRef(false);
+  const generationEpochRef = useRef(0);
+  const downloadBusyRef = useRef(false);
   const activeStep = activeSteps[state.phase];
+  const inputsDisabled = analysisBusy || generationBusy;
+
+  function invalidateAnalysis() {
+    analysisEpochRef.current += 1;
+  }
 
   async function handleAnalyze() {
+    if (analysisBusyRef.current || generationBusyRef.current) return;
     if (state.files.length === 0) {
       dispatch({ type: "analysis_failed", message: "请至少上传 1 张产品图" });
       return;
     }
 
+    const operationId = ++analysisEpochRef.current;
+    analysisBusyRef.current = true;
+    setAnalysisBusy(true);
     dispatch({ type: "analysis_started" });
     try {
       const analysis = await api.analyze({
@@ -38,48 +56,96 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
         productName: state.productName,
         requirements: state.requirements,
       });
-      dispatch({ type: "analysis_succeeded", analysis });
+      if (operationId === analysisEpochRef.current) {
+        dispatch({ type: "analysis_succeeded", analysis });
+      }
     } catch (error) {
-      dispatch({ type: "analysis_failed", message: error instanceof Error ? error.message : "分析失败，请稍后重试" });
+      if (operationId === analysisEpochRef.current) {
+        dispatch({ type: "analysis_failed", message: error instanceof Error ? error.message : "分析失败，请稍后重试" });
+      }
+    } finally {
+      analysisBusyRef.current = false;
+      setAnalysisBusy(false);
+    }
+  }
+
+  async function runGenerationOperation(operation: (operationId: number) => Promise<void>) {
+    if (analysisBusyRef.current || generationBusyRef.current) return;
+    const operationId = ++generationEpochRef.current;
+    generationBusyRef.current = true;
+    setGenerationBusy(true);
+    try {
+      await operation(operationId);
+      if (operationId === generationEpochRef.current) {
+        dispatch({ type: "generation_completed" });
+      }
+    } finally {
+      generationBusyRef.current = false;
+      setGenerationBusy(false);
     }
   }
 
   async function handleGenerate() {
-    if (!state.analysis) return;
-    dispatch({
-      type: "generation_started",
-      tasks: state.analysis.plan.map((item) => ({ planItemId: item.id, status: "queued", progress: 0 })),
+    const analysis = state.analysis;
+    if (!analysis) return;
+    await runGenerationOperation(async (operationId) => {
+      dispatch({
+        type: "generation_started",
+        tasks: analysis.plan.map((item) => ({ planItemId: item.id, status: "queued", progress: 0 })),
+      });
+      await runGenerationBatch({
+        items: analysis.plan,
+        files: state.files,
+        settings: state.settings,
+        api,
+        onTaskChange: (task) => {
+          if (operationId === generationEpochRef.current) dispatch({ type: "task_changed", task });
+        },
+      });
     });
-    await runGenerationBatch({
-      items: state.analysis.plan,
-      files: state.files,
-      settings: state.settings,
-      api,
-      onTaskChange: (task) => dispatch({ type: "task_changed", task }),
-    });
-    dispatch({ type: "generation_completed" });
   }
 
   async function handleRetry(item: PlanItem) {
-    await runGenerationBatch({
-      items: [item],
-      files: state.files,
-      settings: state.settings,
-      api,
-      onTaskChange: (task) => dispatch({ type: "task_changed", task }),
+    await runGenerationOperation(async (operationId) => {
+      await runGenerationBatch({
+        items: [item],
+        files: state.files,
+        settings: state.settings,
+        api,
+        onTaskChange: (task) => {
+          if (operationId === generationEpochRef.current) dispatch({ type: "task_changed", task });
+        },
+      });
     });
-    dispatch({ type: "generation_completed" });
   }
 
   async function handleContinuePolling(task: GenerationTask) {
     if (!task.providerJobId) return;
-    await pollGenerationJob({
-      providerJobId: task.providerJobId,
-      planItemId: task.planItemId,
-      api,
-      onTaskChange: (next) => dispatch({ type: "task_changed", task: next }),
+    await runGenerationOperation(async (operationId) => {
+      await pollGenerationJob({
+        providerJobId: task.providerJobId!,
+        planItemId: task.planItemId,
+        api,
+        onTaskChange: (next) => {
+          if (operationId === generationEpochRef.current) dispatch({ type: "task_changed", task: next });
+        },
+      });
     });
-    dispatch({ type: "generation_completed" });
+  }
+
+  async function runDownload(operation: () => Promise<void>, fallbackMessage: string) {
+    if (downloadBusyRef.current) return;
+    downloadBusyRef.current = true;
+    setDownloadBusy(true);
+    setDownloadNotice(null);
+    try {
+      await operation();
+    } catch (error) {
+      setDownloadNotice(error instanceof Error ? error.message : fallbackMessage);
+    } finally {
+      downloadBusyRef.current = false;
+      setDownloadBusy(false);
+    }
   }
 
   return (
@@ -98,25 +164,51 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
       </ol>
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div className="rounded-xl bg-white p-4">
-          <ImageUploader files={state.files} onFilesChanged={(files) => dispatch({ type: "files_changed", files })} />
+          <ImageUploader files={state.files} disabled={inputsDisabled} onFilesChanged={(files) => {
+            if (generationBusyRef.current) return;
+            invalidateAnalysis();
+            dispatch({ type: "files_changed", files });
+          }} />
           <label className="mt-4 block">
             产品名称
-            <input className="mt-1 block w-full rounded border border-black/15 p-2" value={state.productName} onChange={(event) => dispatch({ type: "text_changed", productName: event.currentTarget.value })} />
+            <input className="mt-1 block w-full rounded border border-black/15 p-2" disabled={inputsDisabled} value={state.productName} onChange={(event) => {
+              if (generationBusyRef.current) return;
+              invalidateAnalysis();
+              dispatch({ type: "text_changed", productName: event.currentTarget.value });
+            }} />
           </label>
           <label className="mt-4 block">
             补充要求
-            <textarea className="mt-1 block w-full rounded border border-black/15 p-2" value={state.requirements} onChange={(event) => dispatch({ type: "text_changed", requirements: event.currentTarget.value })} />
+            <textarea className="mt-1 block w-full rounded border border-black/15 p-2" disabled={inputsDisabled} value={state.requirements} onChange={(event) => {
+              if (generationBusyRef.current) return;
+              invalidateAnalysis();
+              dispatch({ type: "text_changed", requirements: event.currentTarget.value });
+            }} />
           </label>
           <div className="mt-4">
-            <GenerationSettingsForm value={state.settings} onChange={(patch) => dispatch({ type: "settings_changed", patch })} />
+            <GenerationSettingsForm value={state.settings} disabled={inputsDisabled} onChange={(patch) => {
+              if (generationBusyRef.current) return;
+              invalidateAnalysis();
+              dispatch({ type: "settings_changed", patch });
+            }} />
           </div>
-          <button className="mt-4 rounded-lg bg-violet-700 px-4 py-2 text-white disabled:opacity-60" type="button" onClick={() => void handleAnalyze()} disabled={state.phase === "analyzing"}>
+          <button className="mt-4 rounded-lg bg-violet-700 px-4 py-2 text-white disabled:opacity-60" type="button" onClick={() => void handleAnalyze()} disabled={inputsDisabled}>
             开始分析产品
           </button>
           {state.notice && <p className="mt-3 text-sm text-red-700" role="alert">{state.notice}</p>}
+          {downloadNotice && <p className="mt-3 text-sm text-red-700" role="alert">{downloadNotice}</p>}
         </div>
         <div className="rounded-xl bg-white p-4" aria-live="polite">
-          {state.phase === "analyzing" ? <p>AI 正在分析产品…</p> : state.phase === "reviewing_plan" && state.analysis ? <><AnalysisPanel analysis={state.analysis} /><PlanEditor analysis={state.analysis} onChange={(analysis) => dispatch({ type: "plan_changed", analysis })} onReplan={() => void handleAnalyze()} onConfirm={() => void handleGenerate()} /></> : state.analysis && state.tasks.length > 0 ? <GenerationGrid items={state.analysis.plan} tasks={state.tasks} onRetry={(item) => void handleRetry(item)} onContinuePolling={(task) => void handleContinuePolling(task)} onDownload={(task) => task.downloadToken && void downloadResult(task.downloadToken, `product-${task.planItemId}.png`)} onDownloadAll={() => void downloadAllResults(state.tasks)} /> : state.analysis ? <AnalysisPanel analysis={state.analysis} /> : <p>上传产品图并点击“开始分析产品”</p>}
+          {state.phase === "analyzing" ? <p>AI 正在分析产品…</p> : state.phase === "reviewing_plan" && state.analysis ? <><AnalysisPanel analysis={state.analysis} /><PlanEditor analysis={state.analysis} disabled={inputsDisabled} onChange={(analysis) => dispatch({ type: "plan_changed", analysis })} onReplan={() => void handleAnalyze()} onConfirm={() => void handleGenerate()} /></> : state.analysis && state.tasks.length > 0 ? <GenerationGrid items={state.analysis.plan} tasks={state.tasks} busy={generationBusy} downloadBusy={downloadBusy} onRetry={(item) => void handleRetry(item)} onContinuePolling={(task) => void handleContinuePolling(task)} onDownload={(task) => {
+            if (!task.downloadToken) return;
+            void runDownload(
+              () => downloadResult(task.downloadToken!, `product-${task.planItemId}.png`),
+              "图片下载失败，请重试",
+            );
+          }} onDownloadAll={() => void runDownload(
+            () => downloadAllResults(state.tasks),
+            "结果打包下载失败，请重试",
+          )} /> : state.analysis ? <AnalysisPanel analysis={state.analysis} /> : <p>上传产品图并点击“开始分析产品”</p>}
         </div>
       </div>
     </section>

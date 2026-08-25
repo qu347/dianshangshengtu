@@ -1,32 +1,22 @@
 import { GenerationSettingsSchema, PlanItemSchema } from "@/features/product-studio/model";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
+import { validateProductImages, validateProductPostRequest } from "@/lib/product-upload";
 import { ZodError } from "zod";
 
-const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const maxImageBytes = 5 * 1024 * 1024;
-const maxRequestBytes = 36 * 1024 * 1024;
-
 export async function POST(request: Request) {
+  const requestError = validateProductPostRequest(request);
+  if (requestError) return requestError;
+
   if (!process.env.GRSAI_API_KEY) {
     return Response.json({ error: "图片生成服务尚未配置" }, { status: 503 });
-  }
-  if (Number(request.headers.get("Content-Length")) > maxRequestBytes) {
-    return Response.json({ error: "请求体不能超过 36 MB" }, { status: 413 });
   }
 
   try {
     const form = await request.formData();
-    const images = form.getAll("images").filter((value): value is File => value instanceof File);
-    if (images.length === 0) {
-      return Response.json({ error: "请至少上传 1 张产品图" }, { status: 400 });
-    }
-    if (images.length > 6) {
-      return Response.json({ error: "最多上传 6 张产品图" }, { status: 400 });
-    }
-    if (images.some((file) => !allowedImageTypes.has(file.type) || file.size > maxImageBytes)) {
-      return Response.json({ error: "图片格式或大小不符合要求" }, { status: 400 });
-    }
+    const validatedImages = await validateProductImages(form);
+    if ("error" in validatedImages) return Response.json(validatedImages, { status: 400 });
+    const { images } = validatedImages;
 
     let settings: ReturnType<typeof GenerationSettingsSchema.parse>;
     let item: ReturnType<typeof PlanItemSchema.parse>;
@@ -54,7 +44,7 @@ export async function POST(request: Request) {
       task: {
         planItemId: item.id,
         providerJobId: job.id,
-        status: job.status,
+        status: job.status === "succeeded" ? "running" : job.status,
         progress: job.progress,
         ...(job.error ? { error: job.error } : {}),
       },

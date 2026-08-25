@@ -10,9 +10,11 @@ type ResultCardProps = {
   onRetry: (item: PlanItem) => void;
   onContinuePolling: (task: GenerationTask) => void;
   onDownload: (task: GenerationTask) => void;
+  busy?: boolean;
+  downloadBusy?: boolean;
 };
 
-export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload }: ResultCardProps) {
+export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload, busy = false, downloadBusy = false }: ResultCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const viewButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = `result-title-${item.id}`;
@@ -42,7 +44,7 @@ export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload 
           <Image unoptimized width={1024} height={1024} className="aspect-square h-auto w-full rounded-lg object-contain" src={task.resultUrl} alt={imageLabel} />
           <div className="mt-3 flex gap-2">
             <button ref={viewButtonRef} className="rounded-lg border border-black/15 px-3 py-2" type="button" onClick={() => setDialogOpen(true)}>查看大图</button>
-            <button className="rounded-lg bg-violet-700 px-3 py-2 text-white disabled:opacity-60" type="button" disabled={!task.downloadToken} onClick={() => onDownload(task)}>下载</button>
+            <button className="rounded-lg bg-violet-700 px-3 py-2 text-white disabled:opacity-60" type="button" disabled={busy || downloadBusy || !task.downloadToken} onClick={() => onDownload(task)}>下载</button>
           </div>
         </div>
       )}
@@ -50,14 +52,14 @@ export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload 
       {task.status === "failed" && (
         <div className="mt-3">
           <p className="text-red-700" role="alert">{task.error ?? "生成失败"}</p>
-          <button className="mt-3 rounded-lg border border-black/15 px-3 py-2" type="button" onClick={() => onRetry(item)}>重试此图</button>
+          <button className="mt-3 rounded-lg border border-black/15 px-3 py-2 disabled:opacity-60" type="button" disabled={busy} onClick={() => onRetry(item)}>重试此图</button>
         </div>
       )}
 
       {task.status === "timed_out" && (
         <div className="mt-3">
-          <p>查询超时，任务仍可能在生成</p>
-          <button className="mt-3 rounded-lg border border-black/15 px-3 py-2 disabled:opacity-60" type="button" disabled={!task.providerJobId} onClick={() => onContinuePolling(task)}>继续查询</button>
+          <p>{task.error ?? "查询超时，任务仍可能在生成"}</p>
+          <button className="mt-3 rounded-lg border border-black/15 px-3 py-2 disabled:opacity-60" type="button" disabled={busy || !task.providerJobId} onClick={() => onContinuePolling(task)}>继续查询</button>
         </div>
       )}
 

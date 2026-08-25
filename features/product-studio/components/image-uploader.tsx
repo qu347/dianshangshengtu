@@ -6,6 +6,7 @@ import { preprocessProductImage, validateProductFiles } from "../lib/image-files
 type ImageUploaderProps = {
   files: File[];
   onFilesChanged: (files: File[]) => void;
+  disabled?: boolean;
 };
 
 function ImagePreview({ file }: { file: File }) {
@@ -21,10 +22,11 @@ function ImagePreview({ file }: { file: File }) {
   return <img ref={imageRef} alt={file.name} />;
 }
 
-export function ImageUploader({ files, onFilesChanged }: ImageUploaderProps) {
+export function ImageUploader({ files, onFilesChanged, disabled = false }: ImageUploaderProps) {
   const [error, setError] = useState<string | null>(null);
 
   async function handleFiles(selected: File[]) {
+    if (disabled) return;
     const errors = validateProductFiles(selected);
     if (errors.length) {
       setError(errors[0]);
@@ -46,6 +48,7 @@ export function ImageUploader({ files, onFilesChanged }: ImageUploaderProps) {
         type="file"
         multiple
         accept="image/jpeg,image/png,image/webp"
+        disabled={disabled}
         onChange={(event) => void handleFiles(Array.from(event.currentTarget.files ?? []))}
       />
       {error && <p role="alert">{error}</p>}
@@ -53,7 +56,7 @@ export function ImageUploader({ files, onFilesChanged }: ImageUploaderProps) {
         {files.map((file, index) => (
           <div key={`${file.name}-${index}`}>
             <ImagePreview file={file} />
-            <button type="button" onClick={() => onFilesChanged(files.filter((_, fileIndex) => fileIndex !== index))}>移除 {file.name}</button>
+            <button type="button" disabled={disabled} onClick={() => onFilesChanged(files.filter((_, fileIndex) => fileIndex !== index))}>移除 {file.name}</button>
           </div>
         ))}
       </div>

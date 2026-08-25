@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { getGenerationStatusClient, submitGenerationClient } from "./client-api";
+import { analyzeProductClient, getGenerationStatusClient, submitGenerationClient } from "./client-api";
 import { pollGenerationJob, runGenerationBatch } from "./generation-runner";
-import { defaultSettings, makeImageFile, makePlanItems } from "../test-fixtures";
+import { analysisWithTwoItems, defaultSettings, makeImageFile, makePlanItems } from "../test-fixtures";
 import type { GenerationTask, PlanItem } from "../model";
 
 const file = makeImageFile();
@@ -184,6 +184,37 @@ it("fails only the item whose provider call throws", async () => {
   ]));
 });
 
+it("keeps a submitted provider job resumable when status lookup throws", async () => {
+  const api = {
+    submit: vi.fn().mockResolvedValue({
+      planItemId: "1",
+      providerJobId: "job-1",
+      status: "running" as const,
+      progress: 0,
+    }),
+    status: vi.fn().mockRejectedValue(new Error("provider lookup details")),
+  };
+  const changes: GenerationTask[] = [];
+
+  const tasks = await runGenerationBatch({
+    items: [onePlanItem],
+    files: [file],
+    settings,
+    api,
+    onTaskChange: (task) => changes.push(task),
+  });
+
+  expect(api.submit).toHaveBeenCalledOnce();
+  expect(tasks).toEqual([{
+    planItemId: "1",
+    providerJobId: "job-1",
+    status: "timed_out",
+    progress: 0,
+    error: "查询生图任务失败，可继续查询",
+  }]);
+  expect(changes.at(-1)).toEqual(tasks[0]);
+});
+
 it("does not start replacement work after the batch is aborted", async () => {
   const controller = new AbortController();
   const api = {
@@ -299,8 +330,26 @@ it("generation clients validate task payloads and attach the caller-owned plan i
   expect(submitted).toMatchObject({ providerJobId: "job-1", status: "running" });
   expect(fetchMock.mock.calls[0][0]).toBe("/api/product/generate");
   expect(fetchMock.mock.calls[0][1]?.body).toBeInstanceOf(FormData);
+  expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ "X-Product-Studio-Request": "1" });
   expect(fetchMock.mock.calls[1][0]).toBe("/api/product/jobs/job%2F1");
   expect(checked.planItemId).toBe("caller-item");
+});
+
+it("analysis client sends the private browser header", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    analysis: analysisWithTwoItems,
+  }), { status: 200, headers: { "Content-Type": "application/json" } }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await analyzeProductClient({
+    files: [file],
+    settings: defaultSettings,
+    productName: "保温杯",
+    requirements: "白底",
+  });
+
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/product/analyze");
+  expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ "X-Product-Studio-Request": "1" });
 });
 
 it("generation clients reject malformed task payloads", async () => {
