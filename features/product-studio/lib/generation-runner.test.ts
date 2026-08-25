@@ -236,6 +236,53 @@ it("does not poll again when aborted during a polling delay", async () => {
   expect(task).toEqual(running);
 });
 
+it("rejects an already-aborted standalone poll without calling status", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const api = { status: vi.fn() };
+  const onTaskChange = vi.fn();
+
+  await expect(pollGenerationJob({
+    providerJobId: "job-1",
+    planItemId: "1",
+    api,
+    onTaskChange,
+    signal: controller.signal,
+  })).rejects.toMatchObject({ name: "AbortError" });
+
+  expect(api.status).not.toHaveBeenCalled();
+  expect(onTaskChange).not.toHaveBeenCalled();
+});
+
+it("does not start status or emit failure when aborted while submission is pending", async () => {
+  const controller = new AbortController();
+  let resolveSubmission!: (task: GenerationTask) => void;
+  const submission = new Promise<GenerationTask>((resolve) => { resolveSubmission = resolve; });
+  const api = {
+    submit: vi.fn(() => submission),
+    status: vi.fn(),
+  };
+  const changes: GenerationTask[] = [];
+
+  const batch = runGenerationBatch({
+    items: [onePlanItem],
+    files: [file],
+    settings,
+    api,
+    onTaskChange: (task) => changes.push(task),
+    signal: controller.signal,
+  });
+  controller.abort();
+  resolveSubmission({ planItemId: "1", providerJobId: "job-1", status: "running", progress: 0 });
+
+  const results = await batch;
+
+  expect(api.submit).toHaveBeenCalledTimes(1);
+  expect(api.status).not.toHaveBeenCalled();
+  expect(changes).not.toContainEqual(expect.objectContaining({ status: "failed" }));
+  expect(results).toEqual([]);
+});
+
 it("generation clients validate task payloads and attach the caller-owned plan item id", async () => {
   const fetchMock = vi.fn()
     .mockResolvedValueOnce(new Response(JSON.stringify({

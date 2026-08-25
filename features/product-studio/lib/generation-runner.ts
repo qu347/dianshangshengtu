@@ -24,6 +24,7 @@ export async function pollGenerationJob(input: {
   let delay = 2000;
 
   while (true) {
+    input.signal?.throwIfAborted();
     const task = await input.api.status(input.providerJobId, input.planItemId);
     input.onTaskChange(task);
 
@@ -61,6 +62,7 @@ export async function runGenerationBatch(input: {
 
     try {
       const submitted = await input.api.submit({ files: input.files, settings: input.settings, item });
+      if (input.signal?.aborted) return;
       providerJobId = submitted.providerJobId;
       input.onTaskChange(submitted);
       if (!providerJobId) throw new Error("生图服务未返回任务 ID");
@@ -77,6 +79,7 @@ export async function runGenerationBatch(input: {
       });
       results.push(result);
     } catch (error) {
+      if (input.signal?.aborted) return;
       const failed: GenerationTask = {
         planItemId: item.id,
         ...(providerJobId ? { providerJobId } : {}),
