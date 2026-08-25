@@ -55,3 +55,24 @@ it("repairs a response with missing message content once", async () => {
   expect(result).toEqual(analysisWithTwoItems);
   expect(fetchImpl).toHaveBeenCalledTimes(2);
 });
+
+it("retains original product context and provenance rules during repair", async () => {
+  const fetchImpl = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ choices: [{ message: { content: "not-json" } }] }), { status: 200 }),
+    )
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(analysisWithTwoItems) } }] }), { status: 200 }),
+    );
+
+  await analyzeProduct(validInput, fetchImpl);
+
+  const repairRequest = JSON.parse(String(fetchImpl.mock.calls[1][1]?.body));
+  expect(repairRequest.messages[1].content).toEqual(expect.arrayContaining([
+    expect.objectContaining({ type: "text", text: expect.stringContaining("产品名称：保温杯") }),
+    { type: "image_url", image_url: { url: validInput.images[0] } },
+  ]));
+  expect(repairRequest.messages[2].content).toContain("原始图像和用户信息仍是唯一事实来源");
+  expect(repairRequest.messages[2].content).toContain("inferred");
+});

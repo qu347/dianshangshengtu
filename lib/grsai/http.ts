@@ -40,5 +40,9 @@ export async function grsaiFetch<T>(
     throw new GrsaiError("upstream", "Grsai 服务暂时不可用", response.status);
   }
 
-  return response.json() as Promise<T>;
+  try {
+    return await response.json() as T;
+  } catch {
+    throw new GrsaiError("upstream", "Grsai 服务响应格式异常，请重试", 502);
+  }
 }

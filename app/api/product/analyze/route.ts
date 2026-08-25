@@ -19,7 +19,15 @@ export async function POST(request: Request) {
       return Response.json({ error: "图片格式或大小不符合要求" }, { status: 400 });
     }
 
-    const settings = GenerationSettingsSchema.parse(JSON.parse(String(form.get("settings"))));
+    let settings: ReturnType<typeof GenerationSettingsSchema.parse>;
+    try {
+      settings = GenerationSettingsSchema.parse(JSON.parse(String(form.get("settings"))));
+    } catch (error) {
+      if (error instanceof ZodError || error instanceof SyntaxError) {
+        return Response.json({ error: "生成参数无效" }, { status: 400 });
+      }
+      throw error;
+    }
     const dataUrls = await Promise.all(
       images.map(async (file) => `data:${file.type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`),
     );
@@ -32,7 +40,7 @@ export async function POST(request: Request) {
 
     return Response.json({ analysis });
   } catch (error) {
-    if (error instanceof ZodError || error instanceof SyntaxError) {
+    if (error instanceof ZodError) {
       return Response.json({ error: "生成参数无效" }, { status: 400 });
     }
     if (error instanceof GrsaiError) {

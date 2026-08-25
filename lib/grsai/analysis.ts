@@ -102,10 +102,10 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
     const repairResponse = await grsaiFetch<ChatCompletion>(
       "/v1/chat/completions",
       createRequest([
-        { role: "system", content: "你是 JSON 修复器。只输出符合要求的 JSON，不使用 Markdown。" },
+        ...messages,
         {
           role: "user",
-          content: `修复以下无效 JSON 分析结果。必须包含字段：${requiredFields}；plan 必须恰好 ${expectedCount} 项。不得添加原文未支持的认证、功效、成分、规格或价格。\n\n${content}`,
+          content: `修复以下无效 JSON 分析结果。原始图像和用户信息仍是唯一事实来源。必须包含字段：${requiredFields}；plan 必须恰好 ${expectedCount} 项。不得臆造认证、功效、成分、规格或价格；无法从图片确认的内容标记为 inferred，用户提供的内容标记为 user_provided。只输出 JSON，不使用 Markdown。\n\n${content}`,
         },
       ]),
       fetchImpl,
