@@ -82,3 +82,19 @@ it("returns 503 without calling the provider when the API key is absent", async 
   expect(await response.json()).toEqual({ error: "图片生成服务尚未配置" });
   expect(submitImageGeneration).not.toHaveBeenCalled();
 });
+
+it("rejects an oversized declared body before parsing multipart data", async () => {
+  const request = new Request("http://localhost/api/product/generate", {
+    method: "POST",
+    body: generationForm(1),
+    headers: { "Content-Length": String(36 * 1024 * 1024 + 1) },
+  });
+  const formDataSpy = vi.spyOn(request, "formData");
+
+  const response = await POST(request);
+
+  expect(response.status).toBe(413);
+  expect(await response.json()).toEqual({ error: "请求体不能超过 36 MB" });
+  expect(formDataSpy).not.toHaveBeenCalled();
+  expect(submitImageGeneration).not.toHaveBeenCalled();
+});

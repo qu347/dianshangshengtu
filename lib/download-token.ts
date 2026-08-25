@@ -20,6 +20,13 @@ function signatureFor(payloadPart: string, secret: string) {
   return createHmac("sha256", secret).update(payloadPart).digest();
 }
 
+function decodeCanonicalBase64Url(part: string) {
+  if (!/^[A-Za-z0-9_-]+$/.test(part)) throw new Error("下载令牌无效");
+  const decoded = Buffer.from(part, "base64url");
+  if (decoded.toString("base64url") !== part) throw new Error("下载令牌无效");
+  return decoded;
+}
+
 export function signDownloadUrl(
   url: string,
   secret: string,
@@ -42,9 +49,11 @@ export function verifyDownloadToken(
   if (parts.length !== 2 || !parts[0] || !parts[1]) throw new Error("下载令牌无效");
 
   const [payloadPart, signaturePart] = parts;
+  let payloadBytes: Buffer;
   let providedSignature: Buffer;
   try {
-    providedSignature = Buffer.from(signaturePart, "base64url");
+    payloadBytes = decodeCanonicalBase64Url(payloadPart);
+    providedSignature = decodeCanonicalBase64Url(signaturePart);
   } catch {
     throw new Error("下载令牌无效");
   }
@@ -58,7 +67,7 @@ export function verifyDownloadToken(
 
   let payload: unknown;
   try {
-    payload = JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8"));
+    payload = JSON.parse(payloadBytes.toString("utf8"));
   } catch {
     throw new Error("下载令牌无效");
   }

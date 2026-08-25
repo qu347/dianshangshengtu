@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { expect, it } from "vitest";
 import { signDownloadUrl, verifyDownloadToken } from "./download-token";
 
@@ -26,4 +27,20 @@ it("rejects malformed token parts without comparing unequal signature buffers", 
   expect(() => verifyDownloadToken("payload", "secret", 1_000)).toThrow("下载令牌无效");
   expect(() => verifyDownloadToken("payload.signature.extra", "secret", 1_000)).toThrow("下载令牌无效");
   expect(() => verifyDownloadToken("e30.AA", "secret", 1_000)).toThrow("下载令牌无效");
+});
+
+it("rejects non-canonical Base64URL characters in either token part", () => {
+  const token = signDownloadUrl("https://cdn.example/result.png", "secret", 1_000, 60);
+  const [payloadPart, signaturePart] = token.split(".");
+  const invalidPayloadPart = `${payloadPart}!`;
+  const matchingSignature = createHmac("sha256", "secret")
+    .update(invalidPayloadPart)
+    .digest("base64url");
+
+  expect(() => verifyDownloadToken(`${payloadPart}.${signaturePart}!`, "secret", 1_030)).toThrow(
+    "下载令牌无效",
+  );
+  expect(() => verifyDownloadToken(`${invalidPayloadPart}.${matchingSignature}`, "secret", 1_030)).toThrow(
+    "下载令牌无效",
+  );
 });

@@ -5,10 +5,14 @@ import { ZodError } from "zod";
 
 const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxImageBytes = 5 * 1024 * 1024;
+const maxRequestBytes = 36 * 1024 * 1024;
 
 export async function POST(request: Request) {
   if (!process.env.GRSAI_API_KEY) {
     return Response.json({ error: "图片生成服务尚未配置" }, { status: 503 });
+  }
+  if (Number(request.headers.get("Content-Length")) > maxRequestBytes) {
+    return Response.json({ error: "请求体不能超过 36 MB" }, { status: 413 });
   }
 
   try {
