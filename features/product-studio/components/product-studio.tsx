@@ -6,6 +6,7 @@ import { initialProductStudioState, productStudioReducer } from "../state";
 import { AnalysisPanel } from "./analysis-panel";
 import { GenerationSettingsForm } from "./generation-settings";
 import { ImageUploader } from "./image-uploader";
+import { PlanEditor } from "./plan-editor";
 
 const steps = ["上传", "AI 分析", "确认规划", "生成", "完成"];
 const activeSteps = { input: 0, analyzing: 1, reviewing_plan: 2, submitting: 3, generating: 3, completed: 4 } as const;
@@ -68,7 +69,7 @@ export function ProductStudio({ api = { analyze: analyzeProductClient } }: { api
           {state.notice && <p className="mt-3 text-sm text-red-700" role="alert">{state.notice}</p>}
         </div>
         <div className="rounded-xl bg-white p-4" aria-live="polite">
-          {state.phase === "analyzing" ? <p>AI 正在分析产品…</p> : state.analysis ? <AnalysisPanel analysis={state.analysis} /> : state.phase === "completed" ? <p>图片已生成完成</p> : state.phase === "submitting" || state.phase === "generating" ? <p>图片正在生成…</p> : <p>上传产品图并点击“开始分析产品”</p>}
+          {state.phase === "analyzing" ? <p>AI 正在分析产品…</p> : state.phase === "reviewing_plan" && state.analysis ? <><AnalysisPanel analysis={state.analysis} /><PlanEditor analysis={state.analysis} onChange={(analysis) => dispatch({ type: "plan_changed", analysis })} onReplan={() => void handleAnalyze()} onConfirm={() => {}} /></> : state.analysis ? <AnalysisPanel analysis={state.analysis} /> : state.phase === "completed" ? <p>图片已生成完成</p> : state.phase === "submitting" || state.phase === "generating" ? <p>图片正在生成…</p> : <p>上传产品图并点击“开始分析产品”</p>}
         </div>
       </div>
     </section>

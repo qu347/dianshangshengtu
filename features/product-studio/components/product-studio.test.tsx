@@ -23,3 +23,18 @@ it("uploads a product and shows the analysis", async () => {
   expect(await screen.findByText(analysisWithTwoItems.visualDirection)).toBeInTheDocument();
   expect(screen.getByText("银色金属杯身")).toBeInTheDocument();
 });
+
+it("clears the plan and asks for re-analysis when generation count changes", async () => {
+  const analyze = vi.fn().mockResolvedValue(analysisWithTwoItems);
+  const user = userEvent.setup();
+  render(<ProductStudio api={{ analyze }} />);
+
+  await user.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
+  await user.click(screen.getByRole("button", { name: "开始分析产品" }));
+  expect(await screen.findByLabelText("第 1 张生图提示词")).toBeInTheDocument();
+
+  await user.selectOptions(screen.getByLabelText("生成数量"), "3");
+
+  expect(screen.queryByLabelText("第 1 张生图提示词")).not.toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("关键参数已变化，请重新分析产品");
+});
