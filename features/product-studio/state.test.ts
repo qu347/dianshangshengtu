@@ -1,0 +1,20 @@
+import { expect, it } from "vitest";
+import { initialProductStudioState, productStudioReducer } from "./state";
+
+it("invalidates analysis when a key setting changes", () => {
+  const withPlan = { ...initialProductStudioState, phase: "reviewing_plan" as const, analysis: { plan: [{ id: "1" }] } as never };
+  const next = productStudioReducer(withPlan, { type: "settings_changed", patch: { imageCount: 2 } });
+  expect(next.phase).toBe("input"); expect(next.analysis).toBeNull(); expect(next.notice).toBe("关键参数已变化，请重新分析产品");
+});
+
+it("invalidates analysis when product facts change", () => {
+  const withPlan = { ...initialProductStudioState, phase: "reviewing_plan" as const, productName: "旧名称", analysis: { plan: [{ id: "1" }] } as never };
+  const next = productStudioReducer(withPlan, { type: "text_changed", productName: "新名称" });
+  expect(next.phase).toBe("input"); expect(next.analysis).toBeNull(); expect(next.notice).toBe("产品信息已变化，请重新分析产品");
+});
+
+it("updates one task without replacing the remaining tasks", () => {
+  const state = { ...initialProductStudioState, tasks: [{ planItemId: "1", status: "running" as const, progress: 10 }, { planItemId: "2", status: "queued" as const, progress: 0 }] };
+  const next = productStudioReducer(state, { type: "task_changed", task: { planItemId: "1", status: "succeeded", progress: 100, resultUrl: "https://example.com/1.png", downloadToken: "token" } });
+  expect(next.tasks[0].status).toBe("succeeded"); expect(next.tasks[1].status).toBe("queued");
+});
