@@ -1,4 +1,11 @@
-import { ProductAnalysisSchema, assertPlanCount, type GenerationSettings } from "../model";
+import {
+  GenerationTaskSchema,
+  ProductAnalysisSchema,
+  assertPlanCount,
+  type GenerationSettings,
+  type GenerationTask,
+  type PlanItem,
+} from "../model";
 
 export async function analyzeProductClient(input: {
   files: File[];
@@ -22,3 +29,33 @@ export async function analyzeProductClient(input: {
 export type ProductStudioAnalysisApi = {
   analyze: typeof analyzeProductClient;
 };
+
+export type ProductStudioApi = ProductStudioAnalysisApi & {
+  submit: (input: { files: File[]; settings: GenerationSettings; item: PlanItem }) => Promise<GenerationTask>;
+  status: (jobId: string, planItemId: string) => Promise<GenerationTask>;
+};
+
+export async function submitGenerationClient(input: {
+  files: File[];
+  settings: GenerationSettings;
+  item: PlanItem;
+}) {
+  const form = new FormData();
+  input.files.forEach((file) => form.append("images", file));
+  form.append("settings", JSON.stringify(input.settings));
+  form.append("item", JSON.stringify(input.item));
+
+  const response = await fetch("/api/product/generate", { method: "POST", body: form });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error ?? "提交生图任务失败");
+
+  return GenerationTaskSchema.parse(body.task);
+}
+
+export async function getGenerationStatusClient(jobId: string, planItemId: string) {
+  const response = await fetch(`/api/product/jobs/${encodeURIComponent(jobId)}`);
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error ?? "查询生图任务失败");
+
+  return GenerationTaskSchema.parse({ ...body.task, planItemId });
+}
