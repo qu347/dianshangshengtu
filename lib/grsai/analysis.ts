@@ -64,7 +64,7 @@ function createRequest(messages: unknown[]) {
   return {
     method: "POST",
     body: JSON.stringify({
-      model: "gemini-3.1-flash",
+      model: "gemini-3.1-flash-lite",
       stream: false,
       messages,
     }),

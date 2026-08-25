@@ -26,6 +26,20 @@ it("requires the exact requested plan count and forbids invented claims", () => 
   expect(prompt).toContain("不得臆造认证、功效、成分、规格或价格");
 });
 
+it("submits analysis with the available Grsai vision model", async () => {
+  const fetchImpl = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({ choices: [{ message: { content: JSON.stringify(analysisWithTwoItems) } }] }),
+      { status: 200 },
+    ),
+  );
+
+  await analyzeProduct(validInput, fetchImpl);
+
+  const request = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body));
+  expect(request.model).toBe("gemini-3.1-flash-lite");
+});
+
 it("repairs malformed JSON once and returns a validated analysis", async () => {
   const fetchImpl = vi
     .fn()
