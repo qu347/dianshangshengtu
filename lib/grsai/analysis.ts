@@ -63,6 +63,7 @@ function getContent(response: ChatCompletion) {
 function createRequest(messages: unknown[]) {
   return {
     method: "POST",
+    signal: AbortSignal.timeout(180_000),
     body: JSON.stringify({
       model: "gemini-3.1-flash-lite",
       stream: false,

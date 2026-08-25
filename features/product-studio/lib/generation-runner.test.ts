@@ -131,11 +131,11 @@ it("marks a job timed_out without resubmitting it", async () => {
   expect(changes.at(-1)).toMatchObject({ status: "timed_out", providerJobId: "job-1" });
 });
 
-it("uses a ten-minute default timeout when resuming a provider job", async () => {
+it("uses a twenty-minute default timeout when resuming a provider job", async () => {
   const api = {
     status: vi.fn().mockResolvedValue({ planItemId: "1", providerJobId: "job-1", status: "running" as const, progress: 50 }),
   };
-  const times = [0, 599_999, 600_000];
+  const times = [0, 1_199_999, 1_200_000];
   const sleep = vi.fn().mockResolvedValue(undefined);
 
   const task = await pollGenerationJob({

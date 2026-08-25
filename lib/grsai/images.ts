@@ -90,6 +90,7 @@ export async function submitImageGeneration(input: SubmitImageInput, fetchImpl: 
     "/v1/api/generate",
     {
       method: "POST",
+      signal: AbortSignal.timeout(180_000),
       body: JSON.stringify({
         model: "gpt-image-2",
         prompt: input.prompt,
@@ -107,7 +108,7 @@ export async function submitImageGeneration(input: SubmitImageInput, fetchImpl: 
 export async function getImageGenerationResult(id: string, fetchImpl: typeof fetch = fetch) {
   const response = await grsaiFetch<ProviderImageResponse>(
     `/v1/api/result?id=${encodeURIComponent(id)}`,
-    { method: "GET" },
+    { method: "GET", signal: AbortSignal.timeout(180_000) },
     fetchImpl,
   );
   return normalizeImageJob(response);

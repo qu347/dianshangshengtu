@@ -40,6 +40,26 @@ it("submits analysis with the available Grsai vision model", async () => {
   expect(request.model).toBe("gemini-3.1-flash-lite");
 });
 
+it("allows visual analysis up to three minutes", async () => {
+  const analysisSignal = new AbortController().signal;
+  const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockReturnValue(analysisSignal);
+  const fetchImpl = vi.fn().mockResolvedValue(
+    new Response(
+      JSON.stringify({ choices: [{ message: { content: JSON.stringify(analysisWithTwoItems) } }] }),
+      { status: 200 },
+    ),
+  );
+
+  try {
+    await analyzeProduct(validInput, fetchImpl);
+
+    expect(timeoutSpy).toHaveBeenCalledWith(180_000);
+    expect(fetchImpl.mock.calls[0][1]?.signal).toBe(analysisSignal);
+  } finally {
+    timeoutSpy.mockRestore();
+  }
+});
+
 it("repairs malformed JSON once and returns a validated analysis", async () => {
   const fetchImpl = vi
     .fn()

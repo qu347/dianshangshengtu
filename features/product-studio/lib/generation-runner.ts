@@ -19,7 +19,7 @@ export async function pollGenerationJob(input: {
 }): Promise<GenerationTask> {
   const sleep = input.sleep ?? defaultSleep;
   const now = input.now ?? Date.now;
-  const timeoutMs = input.timeoutMs ?? 10 * 60 * 1000;
+  const timeoutMs = input.timeoutMs ?? 20 * 60 * 1000;
   const startedAt = now();
   let delay = 2000;
   let lastProgress = 0;
