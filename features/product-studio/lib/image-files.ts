@@ -12,19 +12,41 @@ export function validateProductFiles(files: File[]) {
 }
 
 export async function preprocessProductImage(file: File) {
-  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  let bitmap: ImageBitmap | undefined;
+  let source: CanvasImageSource;
+  let width: number;
+  let height: number;
   try {
-    const scale = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    source = bitmap;
+    width = bitmap.width;
+    height = bitmap.height;
+  } catch {
+    const url = URL.createObjectURL(file);
+    try {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      source = image;
+      width = image.naturalWidth;
+      height = image.naturalHeight;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  try {
+    const scale = Math.min(1, 2048 / Math.max(width, height));
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
     const context = canvas.getContext("2d");
     if (!context) throw new Error("当前浏览器无法处理图片");
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("图片压缩失败")), "image/webp", 0.9));
     if (blob.size > NORMALIZED_MAX_BYTES) throw new Error("压缩后的图片仍超过 5 MB，请使用尺寸更小的原图");
     return new File([blob], file.name.replace(/\.[^.]+$/, ".webp"), { type: "image/webp" });
   } finally {
-    bitmap.close();
+    bitmap?.close();
   }
 }
