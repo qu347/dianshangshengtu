@@ -11,16 +11,17 @@ type ResultCardProps = {
   onContinuePolling: (task: GenerationTask) => void;
   onDownload: (task: GenerationTask) => void;
   busy?: boolean;
+  retrying?: boolean;
   downloadBusy?: boolean;
 };
 
-export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload, busy = false, downloadBusy = false }: ResultCardProps) {
+export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload, busy = false, retrying = false, downloadBusy = false }: ResultCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const viewButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = `result-title-${item.id}`;
   const imageLabel = `生成结果：${item.title}`;
   const isInProgress = task.status === "queued" || task.status === "submitting" || task.status === "running";
-  const progressLabel = task.status === "queued" ? "等待生成" : task.status === "submitting" ? "正在提交" : "生成中";
+  const progressLabel = task.status === "queued" ? "等待生成" : task.status === "submitting" ? retrying ? "正在重新提交…" : "正在提交" : "生成中";
 
   function closeDialog() {
     setDialogOpen(false);
@@ -53,6 +54,7 @@ export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload,
         <div className="mt-3">
           <p className="text-red-700" role="alert">{task.error ?? "生成失败"}</p>
           <button className="mt-3 rounded-lg border border-black/15 px-3 py-2 disabled:opacity-60" type="button" disabled={busy} onClick={() => onRetry(item)}>重试此图</button>
+          {busy && <p className="mt-2 text-sm text-black/55">当前批次生成中，完成后可重试</p>}
         </div>
       )}
 

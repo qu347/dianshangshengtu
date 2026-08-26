@@ -186,6 +186,8 @@ it("uses one page-wide generation lock for rapid retries", async () => {
   const retryButtons = await screen.findAllByRole("button", { name: "重试此图" });
 
   fireEvent.click(retryButtons[0]);
+  expect(await screen.findByText("正在重新提交…")).toBeInTheDocument();
+  expect(screen.getByText("当前批次生成中，完成后可重试")).toBeInTheDocument();
   fireEvent.click(retryButtons[1]);
 
   expect(submit).toHaveBeenCalledTimes(3);

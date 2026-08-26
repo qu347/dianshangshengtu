@@ -23,6 +23,12 @@ it.each([
   expect(screen.getByRole("progressbar")).toHaveAttribute("value", "40");
 });
 
+it("distinguishes a retry submission from the first submission", () => {
+  render(<ResultCard item={item} task={{ planItemId: item.id, status: "submitting", progress: 0 }} {...handlers} retrying />);
+
+  expect(screen.getByText("正在重新提交…")).toBeInTheDocument();
+});
+
 it("shows the result and download after success", () => {
   render(<ResultCard item={item} task={{ planItemId: item.id, status: "succeeded", progress: 100, resultUrl: "https://cdn.example/result.png", downloadToken: "token" }} {...handlers} />);
 
@@ -53,4 +59,18 @@ it("offers retry for failure and continuing lookup for timeout", () => {
   rerender(<ResultCard item={item} task={{ planItemId: item.id, providerJobId: "job-1", status: "timed_out", progress: 50 }} {...handlers} />);
   expect(screen.getByRole("button", { name: "继续查询" })).toBeEnabled();
   expect(screen.queryByText("生成失败")).not.toBeInTheDocument();
+});
+
+it("explains why retry is unavailable while another generation operation is busy", () => {
+  render(
+    <ResultCard
+      item={item}
+      task={{ planItemId: item.id, status: "failed", progress: 0, error: "网络失败" }}
+      {...handlers}
+      busy
+    />,
+  );
+
+  expect(screen.getByRole("button", { name: "重试此图" })).toBeDisabled();
+  expect(screen.getByText("当前批次生成中，完成后可重试")).toBeInTheDocument();
 });

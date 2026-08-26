@@ -24,6 +24,7 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
   const [state, dispatch] = useReducer(productStudioReducer, initialProductStudioState);
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [generationBusy, setGenerationBusy] = useState(false);
+  const [retryingItemId, setRetryingItemId] = useState<string | null>(null);
   const [downloadBusy, setDownloadBusy] = useState(false);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const analysisBusyRef = useRef(false);
@@ -107,15 +108,20 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
 
   async function handleRetry(item: PlanItem) {
     await runGenerationOperation(async (operationId) => {
-      await runGenerationBatch({
-        items: [item],
-        files: state.files,
-        settings: state.settings,
-        api,
-        onTaskChange: (task) => {
-          if (operationId === generationEpochRef.current) dispatch({ type: "task_changed", task });
-        },
-      });
+      setRetryingItemId(item.id);
+      try {
+        await runGenerationBatch({
+          items: [item],
+          files: state.files,
+          settings: state.settings,
+          api,
+          onTaskChange: (task) => {
+            if (operationId === generationEpochRef.current) dispatch({ type: "task_changed", task });
+          },
+        });
+      } finally {
+        setRetryingItemId(null);
+      }
     });
   }
 
@@ -199,7 +205,7 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
           {downloadNotice && <p className="mt-3 text-sm text-red-700" role="alert">{downloadNotice}</p>}
         </div>
         <div className="rounded-xl bg-white p-4" aria-live="polite">
-          {state.phase === "analyzing" ? <p>AI 正在分析产品…</p> : state.phase === "reviewing_plan" && state.analysis ? <><AnalysisPanel analysis={state.analysis} /><PlanEditor analysis={state.analysis} disabled={inputsDisabled} onChange={(analysis) => dispatch({ type: "plan_changed", analysis })} onReplan={() => void handleAnalyze()} onConfirm={() => void handleGenerate()} /></> : state.analysis && state.tasks.length > 0 ? <GenerationGrid items={state.analysis.plan} tasks={state.tasks} busy={generationBusy} downloadBusy={downloadBusy} onRetry={(item) => void handleRetry(item)} onContinuePolling={(task) => void handleContinuePolling(task)} onDownload={(task) => {
+          {state.phase === "analyzing" ? <p>AI 正在分析产品…</p> : state.phase === "reviewing_plan" && state.analysis ? <><AnalysisPanel analysis={state.analysis} /><PlanEditor analysis={state.analysis} disabled={inputsDisabled} onChange={(analysis) => dispatch({ type: "plan_changed", analysis })} onReplan={() => void handleAnalyze()} onConfirm={() => void handleGenerate()} /></> : state.analysis && state.tasks.length > 0 ? <GenerationGrid items={state.analysis.plan} tasks={state.tasks} busy={generationBusy} retryingItemId={retryingItemId} downloadBusy={downloadBusy} onRetry={(item) => void handleRetry(item)} onContinuePolling={(task) => void handleContinuePolling(task)} onDownload={(task) => {
             if (!task.downloadToken) return;
             void runDownload(
               () => downloadResult(task.downloadToken!, `product-${task.planItemId}.png`),

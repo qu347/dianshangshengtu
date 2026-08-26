@@ -11,10 +11,11 @@ type GenerationGridProps = {
   onDownload: (task: GenerationTask) => void;
   onDownloadAll: () => void;
   busy?: boolean;
+  retryingItemId?: string | null;
   downloadBusy?: boolean;
 };
 
-export function GenerationGrid({ items, tasks, onRetry, onContinuePolling, onDownload, onDownloadAll, busy = false, downloadBusy = false }: GenerationGridProps) {
+export function GenerationGrid({ items, tasks, onRetry, onContinuePolling, onDownload, onDownloadAll, busy = false, retryingItemId = null, downloadBusy = false }: GenerationGridProps) {
   const canDownloadAll = tasks.some((task) => task.status === "succeeded" && task.downloadToken);
 
   return (
@@ -34,6 +35,7 @@ export function GenerationGrid({ items, tasks, onRetry, onContinuePolling, onDow
             onContinuePolling={onContinuePolling}
             onDownload={onDownload}
             busy={busy}
+            retrying={retryingItemId === item.id}
             downloadBusy={downloadBusy}
           />
         ))}
