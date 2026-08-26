@@ -80,6 +80,10 @@ export async function runGenerationBatch(input: {
       if (input.signal?.aborted) return;
       providerJobId = submitted.providerJobId;
       input.onTaskChange(submitted);
+      if (submitted.status !== "running") {
+        results.push(submitted);
+        return;
+      }
       if (!providerJobId) throw new Error("生图服务未返回任务 ID");
 
       const result = await pollGenerationJob({

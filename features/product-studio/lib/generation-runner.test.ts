@@ -51,23 +51,17 @@ it("never runs more than three provider jobs at once", async () => {
   expect(maximum).toBe(3);
 });
 
-it("checks status even when submission reports immediate success", async () => {
+it("does not query status when submission returns a signed successful result", async () => {
   const api = {
     submit: vi.fn().mockResolvedValue({
       planItemId: "1",
       providerJobId: "job-1",
       status: "succeeded" as const,
       progress: 100,
-      resultUrl: "https://unsigned/result.png",
-    }),
-    status: vi.fn().mockResolvedValue({
-      planItemId: "1",
-      providerJobId: "job-1",
-      status: "succeeded" as const,
-      progress: 100,
-      resultUrl: "https://signed/result.png",
+      resultUrl: "https://cdn/result.png",
       downloadToken: "signed-token",
     }),
+    status: vi.fn().mockRejectedValue(new Error("completed jobs cannot be queried")),
   };
 
   const tasks = await runGenerationBatch({
@@ -79,8 +73,12 @@ it("checks status even when submission reports immediate success", async () => {
   });
 
   expect(api.submit).toHaveBeenCalledTimes(1);
-  expect(api.status).toHaveBeenCalledWith("job-1", "1");
-  expect(tasks[0]).toMatchObject({ resultUrl: "https://signed/result.png", downloadToken: "signed-token" });
+  expect(api.status).not.toHaveBeenCalled();
+  expect(tasks[0]).toMatchObject({
+    status: "succeeded",
+    resultUrl: "https://cdn/result.png",
+    downloadToken: "signed-token",
+  });
 });
 
 it("polls running jobs with capped exponential delays", async () => {

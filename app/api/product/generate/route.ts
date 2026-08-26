@@ -1,4 +1,5 @@
 import { GenerationSettingsSchema, PlanItemSchema } from "@/features/product-studio/model";
+import { signDownloadUrl } from "@/lib/download-token";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
 import { validateProductImages, validateProductPostRequest } from "@/lib/product-upload";
@@ -8,7 +9,8 @@ export async function POST(request: Request) {
   const requestError = validateProductPostRequest(request);
   if (requestError) return requestError;
 
-  if (!process.env.GRSAI_API_KEY) {
+  const tokenSecret = process.env.DOWNLOAD_TOKEN_SECRET;
+  if (!process.env.GRSAI_API_KEY || !tokenSecret) {
     return Response.json({ error: "图片生成服务尚未配置" }, { status: 503 });
   }
 
@@ -39,13 +41,18 @@ export async function POST(request: Request) {
       aspectRatio: settings.aspectRatio,
       quality: settings.quality,
     });
+    const result = job.status === "succeeded" ? job.results[0] : undefined;
 
     return Response.json({
       task: {
         planItemId: item.id,
         providerJobId: job.id,
-        status: job.status === "succeeded" ? "running" : job.status,
+        status: result ? "succeeded" : job.status === "succeeded" ? "running" : job.status,
         progress: job.progress,
+        ...(result ? {
+          resultUrl: result.url,
+          downloadToken: signDownloadUrl(result.url, tokenSecret),
+        } : {}),
         ...(job.error ? { error: job.error } : {}),
       },
     });

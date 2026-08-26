@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { defaultSettings, makePlanItems } from "@/features/product-studio/test-fixtures";
+import { verifyDownloadToken } from "@/lib/download-token";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
 import { POST } from "./route";
 
@@ -43,10 +44,12 @@ function generationRequest(form: FormData, headers: HeadersInit = requestHeaders
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.GRSAI_API_KEY = "test-key";
+  process.env.DOWNLOAD_TOKEN_SECRET = "download-secret";
 });
 
 afterEach(() => {
   delete process.env.GRSAI_API_KEY;
+  delete process.env.DOWNLOAD_TOKEN_SECRET;
 });
 
 it("rejects a request without the private browser header before parsing multipart data", async () => {
@@ -125,7 +128,7 @@ it("returns a normalized task with the caller plan item id", async () => {
   });
 });
 
-it("normalizes immediate provider success to running until status signs the result", async () => {
+it("returns a signed result when the provider completes during submission", async () => {
   vi.mocked(submitImageGeneration).mockResolvedValue({
     id: "job-1",
     status: "succeeded",
@@ -134,15 +137,19 @@ it("normalizes immediate provider success to running until status signs the resu
   });
 
   const response = await POST(generationRequest(generationForm()));
+  const body = await response.json();
 
-  expect(await response.json()).toEqual({
+  expect(body).toMatchObject({
     task: {
       planItemId: "1",
       providerJobId: "job-1",
-      status: "running",
+      status: "succeeded",
       progress: 100,
+      resultUrl: "https://cdn.example/result.png",
     },
   });
+  expect(verifyDownloadToken(body.task.downloadToken, "download-secret"))
+    .toBe("https://cdn.example/result.png");
 });
 
 it("keeps an incomplete immediate success resumable under the paid provider job id", async () => {
@@ -168,6 +175,16 @@ it("keeps an incomplete immediate success resumable under the paid provider job 
 
 it("returns 503 without calling the provider when the API key is absent", async () => {
   delete process.env.GRSAI_API_KEY;
+
+  const response = await POST(generationRequest(generationForm()));
+
+  expect(response.status).toBe(503);
+  expect(await response.json()).toEqual({ error: "图片生成服务尚未配置" });
+  expect(submitImageGeneration).not.toHaveBeenCalled();
+});
+
+it("returns 503 without calling the provider when download signing is unavailable", async () => {
+  delete process.env.DOWNLOAD_TOKEN_SECRET;
 
   const response = await POST(generationRequest(generationForm()));
 
