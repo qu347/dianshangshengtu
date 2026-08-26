@@ -51,6 +51,28 @@ describe("render-context tokens", () => {
     expect(() => verifyJobToken(job, "secret", 161)).toThrow("任务令牌已过期");
   });
 
+  it("keeps default job tokens valid for 24 hours while downloads expire after 15 minutes", () => {
+    const download = signDownloadUrl("https://cdn.example/image.png", render, "secret", 100);
+    const job = signJobToken("provider-job", render, "secret", 100);
+
+    expect(verifyJobToken(job, "secret", 100 + 20 * 60 + 1)).toEqual({
+      providerJobId: "provider-job",
+      render,
+    });
+    expect(verifyJobToken(job, "secret", 100 + 24 * 60 * 60)).toEqual({
+      providerJobId: "provider-job",
+      render,
+    });
+    expect(() => verifyJobToken(job, "secret", 100 + 24 * 60 * 60 + 1))
+      .toThrow("任务令牌已过期");
+    expect(verifyDownloadToken(download, "secret", 100 + 15 * 60)).toEqual({
+      url: "https://cdn.example/image.png",
+      render,
+    });
+    expect(() => verifyDownloadToken(download, "secret", 100 + 15 * 60 + 1))
+      .toThrow("下载令牌已过期");
+  });
+
   it("rejects the wrong token kind", () => {
     const download = signDownloadUrl("https://cdn.example/image.png", render, "secret", 100, 60);
     const job = signJobToken("provider-job", render, "secret", 100, 60);

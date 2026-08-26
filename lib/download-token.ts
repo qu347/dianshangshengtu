@@ -21,7 +21,8 @@ type JobPayload = {
   exp: number;
 };
 
-const DEFAULT_TTL_SECONDS = 15 * 60;
+const DOWNLOAD_TOKEN_TTL_SECONDS = 15 * 60;
+const JOB_TOKEN_TTL_SECONDS = 24 * 60 * 60;
 const HMAC_LENGTH_BYTES = 32;
 const MAX_ANNOTATIONS = 6;
 const MAX_RENDER_STRING_LENGTH = 40;
@@ -134,7 +135,7 @@ export function signDownloadUrl(
   render: ImageRenderConfig,
   secret: string,
   nowSeconds = Math.floor(Date.now() / 1_000),
-  ttlSeconds = DEFAULT_TTL_SECONDS,
+  ttlSeconds = DOWNLOAD_TOKEN_TTL_SECONDS,
 ): DownloadToken {
   requireHttps(url);
   if (!isImageRenderConfig(render)) {
@@ -153,7 +154,7 @@ export function signJobToken(
   render: ImageRenderConfig,
   secret: string,
   nowSeconds = Math.floor(Date.now() / 1_000),
-  ttlSeconds = DEFAULT_TTL_SECONDS,
+  ttlSeconds = JOB_TOKEN_TTL_SECONDS,
 ) {
   if (
     typeof providerJobId !== "string"

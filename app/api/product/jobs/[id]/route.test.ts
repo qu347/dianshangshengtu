@@ -89,6 +89,28 @@ it("preserves the same opaque job token while the provider is still running", as
   });
 });
 
+it("unwraps and queries a default job token after the twenty-minute polling window", async () => {
+  const issuedAt = Math.floor(Date.now() / 1_000) - 21 * 60;
+  const token = signJobToken("job-1", render, "test-secret", issuedAt);
+  vi.mocked(getImageGenerationResult).mockResolvedValue({
+    id: "job-1",
+    status: "running",
+    progress: 80,
+    results: [],
+  });
+
+  const response = await GET(
+    new Request(`http://localhost/api/product/jobs/${token}`),
+    { params: Promise.resolve({ id: token }) },
+  );
+
+  expect(response.status).toBe(200);
+  expect(getImageGenerationResult).toHaveBeenCalledWith("job-1");
+  expect(await response.json()).toEqual({
+    task: { providerJobId: token, status: "running", progress: 80 },
+  });
+});
+
 it("returns moderation as a terminal failed task that the client runner preserves", async () => {
   const token = jobToken();
   vi.mocked(getImageGenerationResult).mockRejectedValue(
