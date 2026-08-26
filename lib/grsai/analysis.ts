@@ -41,9 +41,35 @@ export function buildAnalysisPrompt(input: PromptInput) {
     `用户补充信息：${input.requirements || "无"}。目标平台：${input.platform}。目标语言：${input.language}。`,
     `必须返回恰好 ${input.imageCount} 个规划项。`,
     "不得臆造认证、功效、成分、规格或价格；无法从图片确认的内容标记为 inferred，用户提供的内容标记为 user_provided。",
+    "visualFacts 和 sellingPoints 的 confidence 只能是 observed、inferred 或 user_provided。",
     `只输出 JSON，字段为 ${requiredFields}。`,
     "plan.type 只能是 main 或 detail；所有标题、文案、场景和提示词必须适用于当前产品。",
   ].join("\n");
+}
+
+function normalizeConfidence(value: unknown) {
+  if (typeof value !== "string") return "inferred";
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (normalized === "observed" || normalized === "inferred" || normalized === "user_provided") {
+    return normalized;
+  }
+  return "inferred";
+}
+
+function normalizeProviderAnalysis(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const analysis = value as Record<string, unknown>;
+  const normalizeItems = (items: unknown) => Array.isArray(items)
+    ? items.map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item) || !("confidence" in item)) return item;
+      return { ...item, confidence: normalizeConfidence(item.confidence) };
+    })
+    : items;
+  return {
+    ...analysis,
+    visualFacts: normalizeItems(analysis.visualFacts),
+    sellingPoints: normalizeItems(analysis.sellingPoints),
+  };
 }
 
 function parseAnalysisContent(content: string, expectedCount: number) {
@@ -51,7 +77,7 @@ function parseAnalysisContent(content: string, expectedCount: number) {
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
-  return assertPlanCount(ProductAnalysisSchema.parse(JSON.parse(unfenced)), expectedCount);
+  return assertPlanCount(ProductAnalysisSchema.parse(normalizeProviderAnalysis(JSON.parse(unfenced))), expectedCount);
 }
 
 function getContent(response: ChatCompletion) {
@@ -106,7 +132,7 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
         ...messages,
         {
           role: "user",
-          content: `修复以下无效 JSON 分析结果。原始图像和用户信息仍是唯一事实来源。必须包含字段：${requiredFields}；plan 必须恰好 ${expectedCount} 项。不得臆造认证、功效、成分、规格或价格；无法从图片确认的内容标记为 inferred，用户提供的内容标记为 user_provided。只输出 JSON，不使用 Markdown。\n\n${content}`,
+          content: `修复以下无效 JSON 分析结果。原始图像和用户信息仍是唯一事实来源。必须包含字段：${requiredFields}；plan 必须恰好 ${expectedCount} 项。不得臆造认证、功效、成分、规格或价格；无法从图片确认的内容标记为 inferred，用户提供的内容标记为 user_provided。visualFacts 和 sellingPoints 的 confidence 只能是 observed、inferred 或 user_provided。只输出 JSON，不使用 Markdown。\n\n${content}`,
         },
       ]),
       fetchImpl,
