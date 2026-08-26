@@ -13,3 +13,16 @@ it("reports too many files without calling onFilesChanged", async () => {
   expect(screen.getByRole("alert")).toHaveTextContent("最多上传 6 张");
   expect(onFilesChanged).not.toHaveBeenCalled();
 });
+
+it("renders selected files as compact thumbnails that can be removed", async () => {
+  const onFilesChanged = vi.fn();
+  const file = new File(["x"], "cup.png", { type: "image/png" });
+  render(<ImageUploader files={[file]} onFilesChanged={onFilesChanged} />);
+
+  expect(screen.getByRole("list", { name: "已选产品图" })).toBeInTheDocument();
+  expect(screen.getByRole("img", { name: "cup.png" })).toHaveClass("size-24");
+
+  await userEvent.click(screen.getByRole("button", { name: "移除 cup.png" }));
+
+  expect(onFilesChanged).toHaveBeenCalledWith([]);
+});
