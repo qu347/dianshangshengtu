@@ -101,7 +101,12 @@ function normalizeProviderAnalysis(value: unknown) {
   };
 }
 
-function parseAnalysisContent(content: string, expectedCount: number, dimensionFacts: PreparedDimensionFact[]) {
+function parseAnalysisContent(
+  content: string,
+  expectedCount: number,
+  dimensionFacts: PreparedDimensionFact[],
+  language: GenerationSettings["language"],
+) {
   const unfenced = content
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
@@ -110,7 +115,12 @@ function parseAnalysisContent(content: string, expectedCount: number, dimensionF
     ProductAnalysisSchema.parse(normalizeProviderAnalysis(JSON.parse(unfenced))),
     expectedCount,
   );
-  return applyPlanRules(assertChinesePlanningFields(analysis), dimensionFacts);
+  const plannedAnalysis = applyPlanRules(assertChinesePlanningFields(analysis), dimensionFacts);
+  if (language !== "none") return plannedAnalysis;
+  return {
+    ...plannedAnalysis,
+    plan: plannedAnalysis.plan.map((item) => ({ ...item, copy: "" })),
+  };
 }
 
 function getContent(response: ChatCompletion) {
@@ -159,7 +169,7 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
   let content = "";
   try {
     content = getContent(response);
-    return parseAnalysisContent(content, expectedCount, dimensionFacts);
+    return parseAnalysisContent(content, expectedCount, dimensionFacts, input.settings.language);
   } catch {
     const repairResponse = await grsaiFetch<ChatCompletion>(
       "/v1/chat/completions",
@@ -173,7 +183,12 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
       fetchImpl,
     );
     try {
-      return parseAnalysisContent(getContent(repairResponse), expectedCount, dimensionFacts);
+      return parseAnalysisContent(
+        getContent(repairResponse),
+        expectedCount,
+        dimensionFacts,
+        input.settings.language,
+      );
     } catch {
       throw new GrsaiError("invalid_request", "AI 分析结果格式异常，请重新分析", 502);
     }

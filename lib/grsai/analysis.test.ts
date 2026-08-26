@@ -16,6 +16,21 @@ function providerAnalysisWithDimensions() {
   return analysis;
 }
 
+function providerAnalysisWithThreeItems(copy: string) {
+  const analysis = providerAnalysisWithDimensions();
+  analysis.plan.push({
+    id: "3",
+    type: "detail",
+    title: "使用场景图",
+    objective: "展示产品使用方式",
+    copy,
+    scene: "明亮的居家桌面",
+    prompt: "展示产品在居家桌面上的使用场景",
+    annotations: [],
+  });
+  return analysis;
+}
+
 beforeEach(() => {
   process.env.GRSAI_API_KEY = "test-key";
 });
@@ -89,6 +104,26 @@ it("conservatively normalizes unsupported provider confidence values", async () 
   expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
 
+it("clears later marketing copy in a valid initial response when language is none", async () => {
+  const providerAnalysis = providerAnalysisWithThreeItems("立即购买");
+  const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    choices: [{ message: { content: JSON.stringify(providerAnalysis) } }],
+  }), { status: 200 }));
+
+  const result = await analyzeProduct({
+    ...validInput,
+    settings: {
+      ...defaultSettings,
+      platform: "general",
+      language: "none",
+      imageCount: 3,
+    },
+  }, fetchImpl);
+
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  expect(result.plan.map((item) => item.copy)).toEqual(["", "", ""]);
+});
+
 it("allows visual analysis up to three minutes", async () => {
   const analysisSignal = new AbortController().signal;
   const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockReturnValue(analysisSignal);
@@ -123,6 +158,31 @@ it("repairs malformed JSON once and returns a validated analysis", async () => {
 
   expect(result.plan).toHaveLength(validInput.settings.imageCount);
   expect(fetchImpl).toHaveBeenCalledTimes(2);
+});
+
+it("clears later marketing copy in a repaired response when language is none", async () => {
+  const repairedAnalysis = providerAnalysisWithThreeItems("修复后仍有文案");
+  const fetchImpl = vi
+    .fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ message: { content: "not-json" } }],
+    }), { status: 200 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify(repairedAnalysis) } }],
+    }), { status: 200 }));
+
+  const result = await analyzeProduct({
+    ...validInput,
+    settings: {
+      ...defaultSettings,
+      platform: "general",
+      language: "none",
+      imageCount: 3,
+    },
+  }, fetchImpl);
+
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+  expect(result.plan.map((item) => item.copy)).toEqual(["", "", ""]);
 });
 
 it("repairs a response with missing message content once", async () => {
