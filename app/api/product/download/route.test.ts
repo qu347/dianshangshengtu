@@ -1,70 +1,198 @@
 // @vitest-environment node
 
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { verifyDownloadToken } from "@/lib/download-token";
+import { createHmac } from "node:crypto";
+import sharp from "sharp";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { signDownloadUrl } from "@/lib/download-token";
+import type { ImageRenderConfig } from "@/lib/image-render-config";
 import { GET } from "./route";
 
-vi.mock("@/lib/download-token", () => ({ verifyDownloadToken: vi.fn() }));
+const secret = "test-secret";
+const width = 1090;
+const height = 1443;
+const render: ImageRenderConfig = {
+  imageIndex: 2,
+  annotations: [{ label: "Height", displayValue: "4.72 in" }],
+  watermark: "Brand",
+  applyWatermark: true,
+};
+
+let sourceImage: Buffer;
+
+beforeAll(async () => {
+  sourceImage = await sharp({
+    create: { width, height, channels: 3, background: "#eeeeee" },
+  }).png().toBuffer();
+});
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  process.env.DOWNLOAD_TOKEN_SECRET = "test-secret";
+  process.env.DOWNLOAD_TOKEN_SECRET = secret;
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   delete process.env.DOWNLOAD_TOKEN_SECRET;
 });
 
-it("rejects an invalid token without fetching a URL", async () => {
-  vi.mocked(verifyDownloadToken).mockImplementation(() => {
-    throw new Error("下载令牌无效");
+function downloadToken() {
+  return signDownloadUrl("https://cdn.example/result.jpg", render, secret);
+}
+
+function requestFor(token: string, inline = false) {
+  const url = new URL("http://localhost/api/product/download");
+  url.searchParams.set("token", token);
+  if (inline) url.searchParams.set("inline", "1");
+  return new Request(url);
+}
+
+function imageResponse() {
+  return new Response(new Uint8Array(sourceImage), {
+    status: 200,
+    headers: { "Content-Type": "image/png" },
   });
-  const fetchMock = vi.spyOn(globalThis, "fetch");
+}
 
-  const response = await GET(new Request("http://localhost/api/product/download?token=bad"));
+function signedTokenFor(payload: unknown) {
+  const payloadPart = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = createHmac("sha256", secret).update(payloadPart).digest("base64url");
+  return `${payloadPart}.${signature}`;
+}
 
-  expect(response.status).toBe(400);
-  expect(fetchMock).not.toHaveBeenCalled();
-});
+describe("signed download proxy", () => {
+  it("rejects a tampered token without fetching an upstream URL", async () => {
+    const token = downloadToken();
+    const changedLastCharacter = token.endsWith("A") ? "B" : "A";
+    const tampered = `${token.slice(0, -1)}${changedLastCharacter}`;
+    const fetchMock = vi.spyOn(globalThis, "fetch");
 
-it("downloads the signed image without following redirects", async () => {
-  vi.mocked(verifyDownloadToken).mockReturnValue("https://cdn.example/result.png");
-  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-    new Response(new Uint8Array([1, 2, 3]), {
-      status: 200,
-      headers: { "Content-Type": "image/png" },
-    }),
-  );
+    const response = await GET(requestFor(tampered));
 
-  const response = await GET(new Request("http://localhost/api/product/download?token=good"));
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
-  expect(fetchMock).toHaveBeenCalledWith(
-    "https://cdn.example/result.png",
-    expect.objectContaining({ redirect: "error", signal: expect.any(AbortSignal) }),
-  );
-  expect(response.headers.get("Content-Disposition")).toBe("attachment; filename=\"result.png\"");
-  expect(response.headers.get("Content-Type")).toBe("image/png");
-  expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
-});
+  it("rejects even correctly signed non-HTTPS source URLs before fetching", async () => {
+    const token = signedTokenFor({
+      kind: "download",
+      url: "http://127.0.0.1/private-resource",
+      render,
+      exp: Math.floor(Date.now() / 1_000) + 60,
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch");
 
-it("refuses non-image upstream responses", async () => {
-  vi.mocked(verifyDownloadToken).mockReturnValue("https://cdn.example/result.png");
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(
-    new Response("not an image", { status: 200, headers: { "Content-Type": "text/html" } }),
-  );
+    const response = await GET(requestFor(token));
 
-  const response = await GET(new Request("http://localhost/api/product/download?token=good"));
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
-  expect(response.status).toBe(502);
-  expect(await response.json()).toEqual({ error: "图片下载失败，请稍后重试" });
-});
+  it("rejects redirect responses while configuring fetch not to follow them", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, {
+        status: 302,
+        headers: { Location: "https://other.example/result.png" },
+      }),
+    );
 
-it("returns 503 before token verification when the signing secret is absent", async () => {
-  delete process.env.DOWNLOAD_TOKEN_SECRET;
+    const response = await GET(requestFor(downloadToken()));
 
-  const response = await GET(new Request("http://localhost/api/product/download?token=good"));
+    expect(response.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://cdn.example/result.jpg",
+      expect.objectContaining({ redirect: "error", signal: expect.any(AbortSignal) }),
+    );
+  });
 
-  expect(response.status).toBe(503);
-  expect(await response.json()).toEqual({ error: "图片下载服务尚未配置" });
-  expect(verifyDownloadToken).not.toHaveBeenCalled();
+  it("rejects a streamed response larger than 25 MiB and cancels its source", async () => {
+    let cancelled = false;
+    const oversized = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(25 * 1024 * 1024 + 1));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(oversized, { headers: { "Content-Type": "image/png" } }),
+    );
+
+    const response = await GET(requestFor(downloadToken()));
+
+    expect(response.status).toBe(502);
+    expect(cancelled).toBe(true);
+  });
+
+  it("refuses non-image upstream responses", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("not an image", { status: 200, headers: { "Content-Type": "text/html" } }),
+    );
+
+    const response = await GET(requestFor(downloadToken()));
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "图片下载失败，请稍后重试" });
+  });
+
+  it("refuses unsupported image content types even when the bytes are decodable", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Uint8Array(sourceImage), {
+        status: 200,
+        headers: { "Content-Type": "image/x-unsupported" },
+      }),
+    );
+
+    const response = await GET(requestFor(downloadToken()));
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "图片下载失败，请稍后重试" });
+  });
+
+  it("returns a clear proxy failure instead of falling back to raw bytes when rendering fails", async () => {
+    const rawBytes = new Uint8Array([1, 2, 3]);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(rawBytes, { status: 200, headers: { "Content-Type": "image/png" } }),
+    );
+
+    const response = await GET(requestFor(downloadToken()));
+
+    expect(response.status).toBe(502);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(await response.json()).toEqual({ error: "图片下载失败，请稍后重试" });
+  });
+
+  it("renders identical PNG pixels for inline and attachment responses", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(imageResponse())
+      .mockResolvedValueOnce(imageResponse());
+
+    const attachment = await GET(requestFor(downloadToken()));
+    const inline = await GET(requestFor(downloadToken(), true));
+    const attachmentBytes = Buffer.from(await attachment.arrayBuffer());
+    const inlineBytes = Buffer.from(await inline.arrayBuffer());
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(attachment.status).toBe(200);
+    expect(inline.status).toBe(200);
+    expect(attachment.headers.get("Content-Disposition"))
+      .toBe("attachment; filename=\"result.png\"");
+    expect(inline.headers.get("Content-Disposition")).toBe("inline; filename=\"result.png\"");
+    expect(attachment.headers.get("Content-Type")).toBe("image/png");
+    expect(attachment.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(attachment.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(inlineBytes.equals(attachmentBytes)).toBe(true);
+    expect(attachmentBytes.equals(sourceImage)).toBe(false);
+    expect(await sharp(attachmentBytes).metadata()).toMatchObject({ width, height, format: "png" });
+  });
+
+  it("returns 503 before token verification when the signing secret is absent", async () => {
+    delete process.env.DOWNLOAD_TOKEN_SECRET;
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    const response = await GET(requestFor(downloadToken()));
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "图片下载服务尚未配置" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
