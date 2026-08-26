@@ -1,5 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { analysisWithTwoItems } from "../../features/product-studio/test-fixtures";
+import type { GenerationSettings, PlanItem } from "../../features/product-studio/model";
+
+function parseMultipartJsonField<T>(body: string, fieldName: string): T {
+  const fieldStart = body.indexOf(`name="${fieldName}"`);
+  expect(fieldStart).toBeGreaterThanOrEqual(0);
+  const valueStart = body.indexOf("\r\n\r\n", fieldStart);
+  expect(valueStart).toBeGreaterThan(fieldStart);
+  const valueEnd = body.indexOf("\r\n--", valueStart + 4);
+  expect(valueEnd).toBeGreaterThan(valueStart);
+  return JSON.parse(body.slice(valueStart + 4, valueEnd)) as T;
+}
 
 test("completes a two-image product workflow without real API calls", async ({ page }) => {
   const productPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZPj8AAAAASUVORK5CYII=", "base64");
@@ -27,6 +38,10 @@ test("completes a two-image product workflow without real API calls", async ({ p
   ];
   const jobs = new Map<string, { planItemId: string; downloadToken: string }>();
   const polledTokens = new Set<string>();
+  const editedPrompts = new Map([
+    ["1", "调整后的白底主图中文提示词"],
+    ["2", "调整后的尺寸标注图中文提示词"],
+  ]);
 
   await page.route("**/api/product/analyze", (route) => {
     const requestBody = route.request().postData() ?? "";
@@ -42,18 +57,27 @@ test("completes a two-image product workflow without real API calls", async ({ p
   });
   let submitted = 0;
   await page.route("**/api/product/generate", (route) => {
-    const itemId = route.request().postData()?.match(/"id":"([^"]+)"/)?.[1];
-    expect(itemId).toBeTruthy();
+    const requestBody = route.request().postData() ?? "";
+    const item = parseMultipartJsonField<PlanItem>(requestBody, "item");
+    const settings = parseMultipartJsonField<GenerationSettings>(requestBody, "settings");
+    expect(item.prompt).toBe(editedPrompts.get(item.id));
+    expect(settings).toMatchObject({
+      platform: "ozon",
+      language: "ru",
+      aspectRatio: "1090x1443",
+      imageCount: 2,
+      watermark: "My Ozon Shop",
+    });
     const providerJobId = opaqueJobTokens[submitted];
     const downloadToken = opaqueDownloadTokens[submitted];
     expect(providerJobId).toBeTruthy();
     expect(downloadToken).toBeTruthy();
     submitted += 1;
-    jobs.set(providerJobId, { planItemId: itemId!, downloadToken });
+    jobs.set(providerJobId, { planItemId: item.id, downloadToken });
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ task: { planItemId: itemId, providerJobId, status: "running", progress: 0 } }),
+      body: JSON.stringify({ task: { planItemId: item.id, providerJobId, status: "running", progress: 0 } }),
     });
   });
   await page.route("**/api/product/jobs/*", (route) => {
@@ -94,6 +118,22 @@ test("completes a two-image product workflow without real API calls", async ({ p
     return route.fulfill({ status: 200, contentType: "image/png", body: productPng });
   });
 
+  async function expectDimensionControlsInsidePanel() {
+    const panel = await page.locator('aside[aria-labelledby="project-config-title"]').boundingBox();
+    expect(panel).not.toBeNull();
+    for (const label of ["尺寸名称 1", "尺寸数值 1", "尺寸单位 1"]) {
+      const control = page.getByLabel(label);
+      await expect(control).toBeVisible();
+      const bounds = await control.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(panel!.x - 1);
+      expect(bounds!.y).toBeGreaterThanOrEqual(panel!.y - 1);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(panel!.x + panel!.width + 1);
+      expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(panel!.y + panel!.height + 1);
+    }
+    return panel!;
+  }
+
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/product-studio");
   await page.getByLabel("平台").selectOption("ozon");
@@ -109,12 +149,8 @@ test("completes a two-image product workflow without real API calls", async ({ p
 
   const desktopOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(desktopOverflow).toBeLessThanOrEqual(1);
-  const desktopPanel = await page.locator('aside[aria-labelledby="project-config-title"]').boundingBox();
-  const desktopDimensionRow = await page.getByText("尺寸项 1", { exact: true }).locator("..").boundingBox();
-  expect(desktopPanel).not.toBeNull();
-  expect(desktopDimensionRow).not.toBeNull();
-  expect(desktopPanel!.width).toBeLessThanOrEqual(361);
-  expect(desktopDimensionRow!.x + desktopDimensionRow!.width).toBeLessThanOrEqual(desktopPanel!.x + desktopPanel!.width);
+  const desktopPanel = await expectDimensionControlsInsidePanel();
+  expect(desktopPanel.width).toBeLessThanOrEqual(361);
 
   await page.getByRole("button", { name: "开始分析产品" }).click();
   await expect(page.getByRole("button", { name: "确认规划并生成" })).toBeEnabled();
@@ -122,7 +158,8 @@ test("completes a two-image product workflow without real API calls", async ({ p
   await expect(page.getByLabel("标题").nth(1)).toHaveValue("尺寸标注图");
   await expect(page.getByText("Высота чашки")).toBeVisible();
   await expect(page.getByText("12 см")).toBeVisible();
-  await page.getByLabel("第 1 张中文生图提示词").fill("调整后的白底主图提示词");
+  await page.getByLabel("第 1 张中文生图提示词").fill(editedPrompts.get("1")!);
+  await page.getByLabel("第 2 张中文生图提示词").fill(editedPrompts.get("2")!);
   await page.getByRole("button", { name: "确认规划并生成" }).click();
   await expect(page.getByRole("img", { name: /生成结果/ })).toHaveCount(2);
   await expect(page.getByRole("button", { name: "下载全部" })).toBeEnabled();
@@ -139,11 +176,10 @@ test("completes a two-image product workflow without real API calls", async ({ p
   await page.setViewportSize({ width: 768, height: 900 });
   const narrowOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(narrowOverflow).toBeLessThanOrEqual(1);
-  const narrowPanel = await page.locator('aside[aria-labelledby="project-config-title"]').boundingBox();
+  const narrowPanel = await expectDimensionControlsInsidePanel();
   const narrowWorkspace = await page.getByRole("region", { name: "创作工作台" }).boundingBox();
-  expect(narrowPanel).not.toBeNull();
   expect(narrowWorkspace).not.toBeNull();
-  expect(narrowWorkspace!.y).toBeGreaterThanOrEqual(narrowPanel!.y + narrowPanel!.height);
+  expect(narrowWorkspace!.y).toBeGreaterThanOrEqual(narrowPanel.y + narrowPanel.height);
 
   expect(submitted).toBe(2);
   expect(polledTokens).toEqual(new Set(opaqueJobTokens));
