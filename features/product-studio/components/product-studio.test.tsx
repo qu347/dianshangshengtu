@@ -25,6 +25,12 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+async function fillRequiredDimension() {
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("尺寸名称 1"), "杯高");
+  await user.type(screen.getByLabelText("尺寸数值 1"), "12");
+}
+
 async function renderSuccessfulStudio() {
   const oneItemAnalysis = { ...analysisWithTwoItems, plan: [analysisWithTwoItems.plan[0]] };
   const submit = vi.fn(async ({ item }: { item: PlanItem }) => ({
@@ -45,6 +51,7 @@ async function renderSuccessfulStudio() {
 
   await userEvent.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
   await userEvent.selectOptions(screen.getByLabelText("生成数量"), "1");
+  await fillRequiredDimension();
   await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
   await userEvent.click(await screen.findByRole("button", { name: "确认规划并生成" }));
   await screen.findByRole("img", { name: "生成结果：白底主图" });
@@ -67,10 +74,43 @@ it("uploads a product and shows the analysis", async () => {
     new File(["x"], "cup.png", { type: "image/png" }),
   );
   await userEvent.selectOptions(screen.getByLabelText("生成数量"), "2");
+  await fillRequiredDimension();
   await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
 
   expect(await screen.findByText(analysisWithTwoItems.visualDirection)).toBeInTheDocument();
   expect(screen.getByText("银色金属杯身")).toBeInTheDocument();
+});
+
+it("sends product dimensions and watermark to analysis", async () => {
+  const analyze = vi.fn().mockResolvedValue(analysisWithTwoItems);
+  const user = userEvent.setup();
+  render(<ProductStudio api={{ analyze, ...unusedGenerationApi }} />);
+
+  await user.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
+  await user.clear(screen.getByLabelText("尺寸名称 1"));
+  await user.type(screen.getByLabelText("尺寸名称 1"), "杯高");
+  await user.clear(screen.getByLabelText("尺寸数值 1"));
+  await user.type(screen.getByLabelText("尺寸数值 1"), "12");
+  await user.type(screen.getByLabelText("文字水印"), "My Shop");
+  await user.selectOptions(screen.getByLabelText("生成数量"), "2");
+  await user.click(screen.getByRole("button", { name: "开始分析产品" }));
+
+  await waitFor(() => expect(analyze).toHaveBeenCalledWith(expect.objectContaining({
+    dimensions: [expect.objectContaining({ label: "杯高", value: 12, unit: "cm" })],
+    settings: expect.objectContaining({ watermark: "My Shop" }),
+  })));
+});
+
+it("shows dimension validation errors without calling analysis", async () => {
+  const analyze = vi.fn().mockResolvedValue(analysisWithTwoItems);
+  render(<ProductStudio api={{ analyze, ...unusedGenerationApi }} />);
+
+  await userEvent.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
+  await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
+
+  expect(analyze).not.toHaveBeenCalled();
+  expect(screen.getByText("请填写尺寸名称")).toBeInTheDocument();
+  expect(screen.getByText("尺寸数值必须大于 0")).toBeInTheDocument();
 });
 
 it("clears the plan and asks for re-analysis when generation count changes", async () => {
@@ -79,6 +119,7 @@ it("clears the plan and asks for re-analysis when generation count changes", asy
   render(<ProductStudio api={{ analyze, ...unusedGenerationApi }} />);
 
   await user.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
+  await fillRequiredDimension();
   await user.click(screen.getByRole("button", { name: "开始分析产品" }));
   expect(await screen.findByLabelText("第 1 张生图提示词")).toBeInTheDocument();
 
@@ -99,6 +140,7 @@ it("keeps successful images and retries only the failed plan item", async () => 
 
   await userEvent.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
   await userEvent.selectOptions(screen.getByLabelText("生成数量"), "2");
+  await fillRequiredDimension();
   await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
   await userEvent.click(await screen.findByRole("button", { name: "确认规划并生成" }));
   await userEvent.click(await screen.findByRole("button", { name: "重试此图" }));
@@ -121,6 +163,7 @@ it("continues a timed-out job without submitting it again", async () => {
 
   await userEvent.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
   await userEvent.selectOptions(screen.getByLabelText("生成数量"), "1");
+  await fillRequiredDimension();
   await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
   await userEvent.click(await screen.findByRole("button", { name: "确认规划并生成" }));
   await userEvent.click(await screen.findByRole("button", { name: "继续查询" }));
@@ -141,10 +184,12 @@ it("disables key inputs and ignores an analysis result invalidated by newer inpu
     new File(["x"], "cup.png", { type: "image/png" }),
   );
   await userEvent.selectOptions(screen.getByLabelText("生成数量"), "2");
+  await fillRequiredDimension();
   await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
 
   expect(screen.getByLabelText("上传产品图")).toBeDisabled();
   expect(screen.getByLabelText("产品名称")).toBeDisabled();
+  expect(screen.getByLabelText("尺寸名称 1")).toBeDisabled();
   expect(screen.getByLabelText("补充要求")).toBeDisabled();
   expect(screen.getByLabelText("平台")).toBeDisabled();
   expect(screen.getByRole("button", { name: "开始分析产品" })).toBeDisabled();
@@ -189,6 +234,7 @@ it("uses one page-wide generation lock for rapid retries", async () => {
 
   await userEvent.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
   await userEvent.selectOptions(screen.getByLabelText("生成数量"), "2");
+  await fillRequiredDimension();
   await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
   await userEvent.click(await screen.findByRole("button", { name: "确认规划并生成" }));
   const retryButtons = await screen.findAllByRole("button", { name: "重试此图" });
@@ -230,6 +276,7 @@ it("offers continuation after a submitted job status lookup errors", async () =>
 
   await userEvent.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
   await userEvent.selectOptions(screen.getByLabelText("生成数量"), "1");
+  await fillRequiredDimension();
   await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
   await userEvent.click(await screen.findByRole("button", { name: "确认规划并生成" }));
   const continueButton = await screen.findByRole("button", { name: "继续查询" });

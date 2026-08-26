@@ -4,9 +4,10 @@ import { useReducer, useRef, useState } from "react";
 import { analyzeProductClient, getGenerationStatusClient, submitGenerationClient, type ProductStudioApi } from "../lib/client-api";
 import { downloadAllResults, downloadResult } from "../lib/downloads";
 import { pollGenerationJob, runGenerationBatch } from "../lib/generation-runner";
-import type { GenerationTask, PlanItem } from "../model";
+import { DimensionItemsSchema, type DimensionItem, type GenerationTask, type PlanItem } from "../model";
 import { initialProductStudioState, productStudioReducer } from "../state";
 import { AnalysisPanel } from "./analysis-panel";
+import { DimensionEditor } from "./dimension-editor";
 import { GenerationGrid } from "./generation-grid";
 import { GenerationSettingsForm } from "./generation-settings";
 import { ImageUploader } from "./image-uploader";
@@ -15,13 +16,17 @@ import { PlanEditor } from "./plan-editor";
 const steps = ["上传", "AI 分析", "确认规划", "生成", "完成"];
 const activeSteps = { input: 0, analyzing: 1, reviewing_plan: 2, submitting: 3, generating: 3, completed: 4 } as const;
 const phaseLabels = { input: "准备素材", analyzing: "AI 分析中", reviewing_plan: "确认规划", submitting: "正在提交", generating: "批量生成中", completed: "任务完成" } as const;
-const defaultProductStudioApi: ProductStudioApi = {
+type ProductStudioComponentApi = Omit<ProductStudioApi, "analyze"> & {
+  analyze: (input: Parameters<ProductStudioApi["analyze"]>[0] & { dimensions: DimensionItem[] }) => ReturnType<ProductStudioApi["analyze"]>;
+};
+
+const defaultProductStudioApi: ProductStudioComponentApi = {
   analyze: analyzeProductClient,
   submit: submitGenerationClient,
   status: getGenerationStatusClient,
 };
 
-export function ProductStudio({ api = defaultProductStudioApi }: { api?: ProductStudioApi }) {
+export function ProductStudio({ api = defaultProductStudioApi }: { api?: ProductStudioComponentApi }) {
   const [state, dispatch] = useReducer(productStudioReducer, initialProductStudioState);
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [generationBusy, setGenerationBusy] = useState(false);
@@ -46,6 +51,11 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
       dispatch({ type: "analysis_failed", message: "请至少上传 1 张产品图" });
       return;
     }
+    const dimensions = DimensionItemsSchema(state.settings.imageCount).safeParse(state.dimensions);
+    if (!dimensions.success) {
+      dispatch({ type: "analysis_failed", message: "请完善产品尺寸后再分析" });
+      return;
+    }
 
     const operationId = ++analysisEpochRef.current;
     analysisBusyRef.current = true;
@@ -55,6 +65,7 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
       const analysis = await api.analyze({
         files: state.files,
         settings: state.settings,
+        dimensions: dimensions.data,
         productName: state.productName,
         requirements: state.requirements,
       });
@@ -221,6 +232,14 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
                     dispatch({ type: "text_changed", productName: event.currentTarget.value });
                   }} />
                 </label>
+                <div className="mt-3" aria-labelledby="product-dimensions-title">
+                  <h4 id="product-dimensions-title" className="text-xs font-medium text-[#5f646e]">产品尺寸</h4>
+                  <DimensionEditor value={state.dimensions} imageCount={state.settings.imageCount} disabled={inputsDisabled} onChange={(dimensions) => {
+                    if (generationBusyRef.current) return;
+                    invalidateAnalysis();
+                    dispatch({ type: "dimensions_changed", dimensions });
+                  }} />
+                </div>
                 <label className="mt-3 block text-xs font-medium text-[#5f646e]">
                   补充要求
                   <textarea className="mt-1.5 block min-h-20 w-full resize-y rounded-lg border border-[#d8dbe2] bg-white px-3 py-2 text-sm leading-6 text-[#24272d] focus:border-[#8175e5] disabled:bg-[#f3f4f6]" placeholder="可填写卖点、场景或文案偏好" disabled={inputsDisabled} value={state.requirements} onChange={(event) => {
