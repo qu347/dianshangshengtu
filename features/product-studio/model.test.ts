@@ -1,9 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { GenerationSettingsSchema, GenerationTaskSchema, ProductAnalysisSchema, assertPlanCount } from "./model";
+import { DimensionItemsSchema, GenerationSettingsSchema, GenerationTaskSchema, ProductAnalysisSchema, assertPlanCount } from "./model";
 
-const settings = { platform: "taobao", language: "zh-CN", aspectRatio: "1024x1536", imageCount: 4, quality: "auto" };
+const settings = { platform: "taobao", language: "zh-CN", aspectRatio: "1024x1536", imageCount: 4, quality: "auto", watermark: "" };
+const ozonSettings = {
+  platform: "ozon",
+  language: "ru",
+  aspectRatio: "1090x1443",
+  imageCount: 2,
+  quality: "auto",
+  watermark: "My Shop",
+};
 
 describe("domain schemas", () => {
+  it("accepts Ozon, Russian, native 3:4, and a text watermark", () => {
+    expect(GenerationSettingsSchema.parse(ozonSettings)).toEqual(ozonSettings);
+  });
+
+  it("rejects a fixed platform with the wrong language", () => {
+    expect(() => GenerationSettingsSchema.parse({ ...ozonSettings, platform: "amazon", language: "zh-CN" })).toThrow();
+  });
+
+  it("requires dimensions for a multi-image request", () => {
+    expect(() => DimensionItemsSchema(2).parse([])).toThrow("至少填写 1 个产品尺寸");
+    expect(DimensionItemsSchema(1).parse([])).toEqual([]);
+  });
+
   it("accepts 1 through 16 images and rejects values outside the range", () => {
     expect(GenerationSettingsSchema.parse(settings).imageCount).toBe(4);
     expect(() => GenerationSettingsSchema.parse({ ...settings, imageCount: 0 })).toThrow();

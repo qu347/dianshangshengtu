@@ -16,6 +16,7 @@ const validSettings = {
   aspectRatio: "1024x1536",
   imageCount: 4,
   quality: "auto",
+  watermark: "",
 };
 
 function analysisForm(options: {
