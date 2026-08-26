@@ -1,8 +1,11 @@
 import {
   assertPlanCount,
   ProductAnalysisSchema,
+  type DimensionItem,
   type GenerationSettings,
 } from "@/features/product-studio/model";
+import { prepareDimensionFacts, type PreparedDimensionFact } from "@/features/product-studio/lib/dimensions";
+import { applyPlanRules, assertChinesePlanningFields } from "@/features/product-studio/lib/plan-rules";
 import { GrsaiError } from "./errors";
 import { grsaiFetch } from "./http";
 
@@ -11,6 +14,7 @@ type AnalysisInput = {
   settings: GenerationSettings;
   productName: string;
   requirements: string;
+  dimensions: DimensionItem[];
 };
 
 type PromptInput = {
@@ -19,6 +23,7 @@ type PromptInput = {
   imageCount: number;
   platform: string;
   language: string;
+  dimensions: PreparedDimensionFact[];
 };
 
 type ChatCompletion = {
@@ -32,8 +37,31 @@ const requiredFields = [
   "audience[]",
   "sellingPoints[{title,evidence,confidence}]",
   "visualDirection",
-  "plan[{id,type,title,objective,copy,scene,prompt}]",
+  "plan[{id,type,title,objective,copy,scene,prompt,annotations[{label,displayValue}]}]",
 ].join(", ");
+
+function planningRequirements(input: Pick<PromptInput, "imageCount" | "language" | "dimensions">) {
+  const copyRule = input.language === "none"
+    ? "营销文案 copy 必须为空字符串。"
+    : `营销文案 copy 必须使用目标语言 ${input.language}。`;
+  const annotationLanguage = input.language === "en" ? "英文" : input.language === "ru" ? "俄文" : "中文";
+  const dimensionRules = input.dimensions.map((dimension, index) => [
+    `第 ${index + 1} 个标注必须对应尺寸 ${dimension.id}，将标注标签“${dimension.sourceLabel}”翻译为${annotationLanguage}。`,
+    `数值字符串“${dimension.displayValue}”必须原样返回。`,
+  ].join(""));
+
+  return [
+    "所有标题、目标、场景和生图提示词必须使用中文。",
+    copyRule,
+    "第 1 项必须是白底商品主图，不得包含营销文案或尺寸标注。",
+    ...(input.imageCount >= 2 ? [
+      "第 2 项必须是尺寸标注图，商品置于左侧，右侧保留干净的尺寸标注区。",
+      `第 2 项必须按输入顺序返回恰好 ${input.dimensions.length} 个 annotations，每个输入尺寸对应一个翻译后的标注标签。`,
+      "annotations 中的数值字符串不得修改。",
+      ...dimensionRules,
+    ] : []),
+  ].join("\n");
+}
 
 export function buildAnalysisPrompt(input: PromptInput) {
   return [
@@ -44,6 +72,7 @@ export function buildAnalysisPrompt(input: PromptInput) {
     "visualFacts 和 sellingPoints 的 confidence 只能是 observed、inferred 或 user_provided。",
     `只输出 JSON，字段为 ${requiredFields}。`,
     "plan.type 只能是 main 或 detail；所有标题、文案、场景和提示词必须适用于当前产品。",
+    planningRequirements(input),
   ].join("\n");
 }
 
@@ -72,12 +101,16 @@ function normalizeProviderAnalysis(value: unknown) {
   };
 }
 
-function parseAnalysisContent(content: string, expectedCount: number) {
+function parseAnalysisContent(content: string, expectedCount: number, dimensionFacts: PreparedDimensionFact[]) {
   const unfenced = content
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
-  return assertPlanCount(ProductAnalysisSchema.parse(normalizeProviderAnalysis(JSON.parse(unfenced))), expectedCount);
+  const analysis = assertPlanCount(
+    ProductAnalysisSchema.parse(normalizeProviderAnalysis(JSON.parse(unfenced))),
+    expectedCount,
+  );
+  return applyPlanRules(assertChinesePlanningFields(analysis), dimensionFacts);
 }
 
 function getContent(response: ChatCompletion) {
@@ -100,6 +133,7 @@ function createRequest(messages: unknown[]) {
 
 export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fetch = fetch) {
   const expectedCount = input.settings.imageCount;
+  const dimensionFacts = prepareDimensionFacts(input.dimensions, input.settings.language);
   const messages = [
     { role: "system", content: "你是电商视觉分析师。只输出符合要求的 JSON，不使用 Markdown。" },
     {
@@ -113,6 +147,7 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
             imageCount: expectedCount,
             platform: input.settings.platform,
             language: input.settings.language,
+            dimensions: dimensionFacts,
           }),
         },
         ...input.images.map((url) => ({ type: "image_url", image_url: { url } })),
@@ -124,7 +159,7 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
   let content = "";
   try {
     content = getContent(response);
-    return parseAnalysisContent(content, expectedCount);
+    return parseAnalysisContent(content, expectedCount, dimensionFacts);
   } catch {
     const repairResponse = await grsaiFetch<ChatCompletion>(
       "/v1/chat/completions",
@@ -132,13 +167,13 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
         ...messages,
         {
           role: "user",
-          content: `修复以下无效 JSON 分析结果。原始图像和用户信息仍是唯一事实来源。必须包含字段：${requiredFields}；plan 必须恰好 ${expectedCount} 项。不得臆造认证、功效、成分、规格或价格；无法从图片确认的内容标记为 inferred，用户提供的内容标记为 user_provided。visualFacts 和 sellingPoints 的 confidence 只能是 observed、inferred 或 user_provided。只输出 JSON，不使用 Markdown。\n\n${content}`,
+          content: `修复以下无效 JSON 分析结果。原始图像和用户信息仍是唯一事实来源。必须包含字段：${requiredFields}；plan 必须恰好 ${expectedCount} 项。不得臆造认证、功效、成分、规格或价格；无法从图片确认的内容标记为 inferred，用户提供的内容标记为 user_provided。visualFacts 和 sellingPoints 的 confidence 只能是 observed、inferred 或 user_provided。\n${planningRequirements({ imageCount: expectedCount, language: input.settings.language, dimensions: dimensionFacts })}\n只输出 JSON，不使用 Markdown。\n\n${content}`,
         },
       ]),
       fetchImpl,
     );
     try {
-      return parseAnalysisContent(getContent(repairResponse), expectedCount);
+      return parseAnalysisContent(getContent(repairResponse), expectedCount, dimensionFacts);
     } catch {
       throw new GrsaiError("invalid_request", "AI 分析结果格式异常，请重新分析", 502);
     }

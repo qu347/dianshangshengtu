@@ -18,12 +18,14 @@ const validSettings = {
   quality: "auto",
   watermark: "",
 };
+const validDimensions = [{ id: "height", label: "杯高", value: 12, unit: "cm" }];
 
 function analysisForm(options: {
   imageCount?: number;
   imageBytes?: BlobPart;
   imageType?: string;
   settings?: unknown;
+  dimensions?: unknown;
 } = {}) {
   const form = new FormData();
   const imageCount = options.imageCount ?? 1;
@@ -35,6 +37,9 @@ function analysisForm(options: {
     ));
   }
   form.append("settings", JSON.stringify(options.settings ?? validSettings));
+  if (options.dimensions !== null) {
+    form.append("dimensions", JSON.stringify(options.dimensions ?? validDimensions));
+  }
   return form;
 }
 
@@ -107,6 +112,17 @@ it("rejects invalid settings at the untrusted route boundary", async () => {
   expect(analyzeProduct).not.toHaveBeenCalled();
 });
 
+it("rejects missing dimensions for a multi-image analysis", async () => {
+  const response = await POST(analysisRequest(analysisForm({
+    settings: { ...validSettings, imageCount: 2 },
+    dimensions: null,
+  })));
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: "产品尺寸无效" });
+  expect(analyzeProduct).not.toHaveBeenCalled();
+});
+
 it("accepts a JPEG whose bytes contain the JPEG magic signature", async () => {
   vi.mocked(analyzeProduct).mockResolvedValueOnce(analysisWithTwoItems);
 
@@ -117,6 +133,7 @@ it("accepts a JPEG whose bytes contain the JPEG magic signature", async () => {
 
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ analysis: analysisWithTwoItems });
+  expect(analyzeProduct).toHaveBeenCalledWith(expect.objectContaining({ dimensions: validDimensions }));
 });
 
 it("does not treat an upstream SyntaxError as invalid generation settings", async () => {

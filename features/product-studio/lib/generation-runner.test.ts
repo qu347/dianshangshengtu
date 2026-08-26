@@ -344,10 +344,15 @@ it("analysis client sends the private browser header", async () => {
     settings: defaultSettings,
     productName: "保温杯",
     requirements: "白底",
+    dimensions: [{ id: "height", label: "杯高", value: 12, unit: "cm" }],
   });
 
   expect(fetchMock.mock.calls[0][0]).toBe("/api/product/analyze");
   expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ "X-Product-Studio-Request": "1" });
+  const body = fetchMock.mock.calls[0][1]?.body as FormData;
+  expect(JSON.parse(String(body.get("dimensions")))).toEqual([
+    { id: "height", label: "杯高", value: 12, unit: "cm" },
+  ]);
 });
 
 it("generation clients reject malformed task payloads", async () => {

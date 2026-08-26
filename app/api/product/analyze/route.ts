@@ -1,4 +1,8 @@
-import { GenerationSettingsSchema } from "@/features/product-studio/model";
+import {
+  DimensionItemsSchema,
+  GenerationSettingsSchema,
+  type DimensionItem,
+} from "@/features/product-studio/model";
 import { analyzeProduct } from "@/lib/grsai/analysis";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { validateProductImages, validateProductPostRequest } from "@/lib/product-upload";
@@ -23,6 +27,17 @@ export async function POST(request: Request) {
       }
       throw error;
     }
+    let dimensions: DimensionItem[];
+    try {
+      dimensions = DimensionItemsSchema(settings.imageCount).parse(
+        JSON.parse(String(form.get("dimensions") ?? "[]")),
+      );
+    } catch (error) {
+      if (error instanceof ZodError || error instanceof SyntaxError) {
+        return Response.json({ error: "产品尺寸无效" }, { status: 400 });
+      }
+      throw error;
+    }
     const dataUrls = await Promise.all(
       images.map(async (file) => `data:${file.type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`),
     );
@@ -31,6 +46,7 @@ export async function POST(request: Request) {
       settings,
       productName: String(form.get("productName") ?? ""),
       requirements: String(form.get("requirements") ?? ""),
+      dimensions,
     });
 
     return Response.json({ analysis });

@@ -4,6 +4,7 @@ import {
   assertPlanCount,
   type GenerationSettings,
   type GenerationTask,
+  type DimensionItem,
   type PlanItem,
 } from "../model";
 import { productRequestHeaders } from "@/lib/product-upload";
@@ -13,12 +14,14 @@ export async function analyzeProductClient(input: {
   settings: GenerationSettings;
   productName: string;
   requirements: string;
+  dimensions: DimensionItem[];
 }) {
   const form = new FormData();
   input.files.forEach((file) => form.append("images", file));
   form.append("settings", JSON.stringify(input.settings));
   form.append("productName", input.productName);
   form.append("requirements", input.requirements);
+  form.append("dimensions", JSON.stringify(input.dimensions));
 
   const response = await fetch("/api/product/analyze", {
     method: "POST",
