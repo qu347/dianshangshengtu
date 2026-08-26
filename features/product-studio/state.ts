@@ -2,7 +2,7 @@ import type { GenerationSettings, GenerationTask, ProductAnalysis } from "./mode
 
 export type ProductStudioPhase = "input" | "analyzing" | "reviewing_plan" | "submitting" | "generating" | "completed";
 export type ProductStudioState = { phase: ProductStudioPhase; files: File[]; settings: GenerationSettings; productName: string; requirements: string; analysis: ProductAnalysis | null; tasks: GenerationTask[]; notice: string | null };
-export const initialProductStudioState: ProductStudioState = { phase: "input", files: [], settings: { platform: "taobao", language: "zh-CN", aspectRatio: "1024x1536", imageCount: 4, quality: "auto" }, productName: "", requirements: "", analysis: null, tasks: [], notice: null };
+export const initialProductStudioState: ProductStudioState = { phase: "input", files: [], settings: { platform: "taobao", language: "zh-CN", aspectRatio: "1024x1536", imageCount: 4, quality: "auto", watermark: "" }, productName: "", requirements: "", analysis: null, tasks: [], notice: null };
 export type ProductStudioAction =
   | { type: "files_changed"; files: File[] } | { type: "settings_changed"; patch: Partial<GenerationSettings> } | { type: "text_changed"; productName?: string; requirements?: string }
   | { type: "analysis_started" } | { type: "analysis_succeeded"; analysis: ProductAnalysis } | { type: "analysis_failed"; message: string } | { type: "plan_changed"; analysis: ProductAnalysis }
