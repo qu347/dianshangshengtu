@@ -10,7 +10,6 @@ const SUPPORTED_IMAGE_CONTENT_TYPES = new Set([
   "image/heif",
   "image/jpeg",
   "image/png",
-  "image/svg+xml",
   "image/tiff",
   "image/webp",
 ]);
@@ -99,7 +98,11 @@ export async function GET(request: Request) {
       signal: AbortSignal.timeout(30_000),
     });
     const contentType = upstream.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
-    if (!upstream.ok || !upstream.body || !contentType || !SUPPORTED_IMAGE_CONTENT_TYPES.has(contentType)) {
+    if (!upstream.ok || !contentType || !SUPPORTED_IMAGE_CONTENT_TYPES.has(contentType)) {
+      await upstream.body?.cancel();
+      return errorResponse("图片下载失败，请稍后重试", 502);
+    }
+    if (!upstream.body) {
       return errorResponse("图片下载失败，请稍后重试", 502);
     }
 

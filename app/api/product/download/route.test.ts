@@ -52,6 +52,20 @@ function imageResponse() {
   });
 }
 
+function pendingResponse(
+  onCancel: () => void,
+  options: { status?: number; contentType?: string } = {},
+) {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array([1]));
+    },
+    cancel: onCancel,
+  });
+  const headers = options.contentType ? { "Content-Type": options.contentType } : undefined;
+  return new Response(body, { status: options.status ?? 200, headers });
+}
+
 function signedTokenFor(payload: unknown) {
   const payloadPart = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = createHmac("sha256", secret).update(payloadPart).digest("base64url");
@@ -103,6 +117,18 @@ describe("signed download proxy", () => {
     );
   });
 
+  it("cancels a present upstream body before rejecting a non-2xx response", async () => {
+    let cancelled = false;
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      pendingResponse(() => { cancelled = true; }, { status: 500, contentType: "image/png" }),
+    );
+
+    const response = await GET(requestFor(downloadToken()));
+
+    expect(response.status).toBe(502);
+    expect(cancelled).toBe(true);
+  });
+
   it("rejects a streamed response larger than 25 MiB and cancels its source", async () => {
     let cancelled = false;
     const oversized = new ReadableStream<Uint8Array>({
@@ -134,11 +160,28 @@ describe("signed download proxy", () => {
     expect(await response.json()).toEqual({ error: "图片下载失败，请稍后重试" });
   });
 
-  it("refuses unsupported image content types even when the bytes are decodable", async () => {
+  it("cancels present bodies before rejecting unsupported or missing content types", async () => {
+    let cancelled = 0;
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(pendingResponse(
+        () => { cancelled += 1; },
+        { contentType: "image/x-unsupported" },
+      ))
+      .mockResolvedValueOnce(pendingResponse(() => { cancelled += 1; }));
+
+    const unsupported = await GET(requestFor(downloadToken()));
+    const missing = await GET(requestFor(downloadToken()));
+
+    expect(unsupported.status).toBe(502);
+    expect(missing.status).toBe(502);
+    expect(cancelled).toBe(2);
+  });
+
+  it("refuses SVG input even though Sharp can decode it", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(new Uint8Array(sourceImage), {
         status: 200,
-        headers: { "Content-Type": "image/x-unsupported" },
+        headers: { "Content-Type": "image/svg+xml" },
       }),
     );
 
