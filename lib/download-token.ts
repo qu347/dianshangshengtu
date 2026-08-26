@@ -2,22 +2,15 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { ImageRenderConfig } from "./image-render-config";
 
 declare const downloadTokenBrand: unique symbol;
-declare const legacyDownloadTokenBrand: unique symbol;
 declare const jobTokenBrand: unique symbol;
 
 export type DownloadToken = string & { readonly [downloadTokenBrand]: true };
-export type LegacyDownloadToken = string & { readonly [legacyDownloadTokenBrand]: true };
 export type JobToken = string & { readonly [jobTokenBrand]: true };
 
 type DownloadPayload = {
   kind: "download";
   url: string;
   render: ImageRenderConfig;
-  exp: number;
-};
-
-type LegacyDownloadPayload = {
-  url: string;
   exp: number;
 };
 
@@ -84,7 +77,7 @@ function decodeCanonicalBase64Url(part: string, invalidMessage: string) {
   return decoded;
 }
 
-function signPayload(payload: DownloadPayload | LegacyDownloadPayload | JobPayload, secret: string) {
+function signPayload(payload: DownloadPayload | JobPayload, secret: string) {
   const payloadPart = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signaturePart = signatureFor(payloadPart, secret).toString("base64url");
   return `${payloadPart}.${signaturePart}`;
@@ -140,42 +133,19 @@ export function signDownloadUrl(
   url: string,
   render: ImageRenderConfig,
   secret: string,
-  nowSeconds?: number,
-  ttlSeconds?: number,
-): DownloadToken;
-/** Temporary compatibility overload for routes migrated in Tasks 8 and 9. */
-export function signDownloadUrl(
-  url: string,
-  secret: string,
-  nowSeconds?: number,
-  ttlSeconds?: number,
-): LegacyDownloadToken;
-export function signDownloadUrl(
-  url: string,
-  renderOrSecret: ImageRenderConfig | string,
-  secretOrNow?: string | number,
-  nowOrTtl?: number,
-  optionalTtl?: number,
-) {
+  nowSeconds = Math.floor(Date.now() / 1_000),
+  ttlSeconds = DEFAULT_TTL_SECONDS,
+): DownloadToken {
   requireHttps(url);
-
-  if (typeof renderOrSecret === "string") {
-    const nowSeconds = typeof secretOrNow === "number" ? secretOrNow : Math.floor(Date.now() / 1_000);
-    const ttlSeconds = nowOrTtl ?? DEFAULT_TTL_SECONDS;
-    return signPayload({ url, exp: nowSeconds + ttlSeconds }, renderOrSecret) as LegacyDownloadToken;
-  }
-
-  if (!isImageRenderConfig(renderOrSecret) || typeof secretOrNow !== "string") {
+  if (!isImageRenderConfig(render)) {
     throw new Error("下载令牌无效");
   }
-  const nowSeconds = nowOrTtl ?? Math.floor(Date.now() / 1_000);
-  const ttlSeconds = optionalTtl ?? DEFAULT_TTL_SECONDS;
   return signPayload({
     kind: "download",
     url,
-    render: renderOrSecret,
+    render,
     exp: nowSeconds + ttlSeconds,
-  }, secretOrNow) as DownloadToken;
+  }, secret) as DownloadToken;
 }
 
 export function signJobToken(
@@ -201,36 +171,16 @@ export function signJobToken(
 }
 
 export function verifyDownloadToken(
-  token: DownloadToken,
-  secret: string,
-  nowSeconds?: number,
-): { url: string; render: ImageRenderConfig };
-export function verifyDownloadToken(
-  token: LegacyDownloadToken,
-  secret: string,
-  nowSeconds?: number,
-): string;
-/** Temporary unbranded compatibility overload for routes migrated in Tasks 8 and 9. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function verifyDownloadToken(token: string, secret: string, nowSeconds?: number): any;
-export function verifyDownloadToken(
   token: string,
   secret: string,
   nowSeconds = Math.floor(Date.now() / 1_000),
-) {
+): { url: string; render: ImageRenderConfig } {
   const payload = verifySignedPayload(
     token,
     secret,
     "下载令牌无效",
   );
 
-  if (!("kind" in payload)) {
-    if (typeof payload.url !== "string" || !isHttpsUrl(payload.url)) {
-      throw new Error("下载令牌无效");
-    }
-    requireUnexpired(payload.exp, nowSeconds, "下载令牌已过期");
-    return payload.url;
-  }
   if (
     payload.kind !== "download"
     || typeof payload.url !== "string"

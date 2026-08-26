@@ -313,23 +313,25 @@ it("does not start status or emit failure when aborted while submission is pendi
 });
 
 it("generation clients validate task payloads and attach the caller-owned plan item id", async () => {
+  const opaqueJobToken = "signed.job/token";
   const fetchMock = vi.fn()
     .mockResolvedValueOnce(new Response(JSON.stringify({
-      task: { planItemId: "1", providerJobId: "job-1", status: "running", progress: 0 },
+      task: { planItemId: "1", providerJobId: opaqueJobToken, status: "running", progress: 0 },
     }), { status: 200, headers: { "Content-Type": "application/json" } }))
     .mockResolvedValueOnce(new Response(JSON.stringify({
-      task: { planItemId: "untrusted", providerJobId: "job-1", status: "succeeded", progress: 100, resultUrl: "https://cdn/result.png", downloadToken: "token" },
+      task: { planItemId: "untrusted", providerJobId: opaqueJobToken, status: "succeeded", progress: 100, resultUrl: "https://cdn/result.png", downloadToken: "token" },
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
   vi.stubGlobal("fetch", fetchMock);
 
   const submitted = await submitGenerationClient({ files: [file], settings, item: onePlanItem });
-  const checked = await getGenerationStatusClient("job/1", "caller-item");
+  const checked = await getGenerationStatusClient(opaqueJobToken, "caller-item");
 
-  expect(submitted).toMatchObject({ providerJobId: "job-1", status: "running" });
+  expect(submitted).toMatchObject({ providerJobId: opaqueJobToken, status: "running" });
   expect(fetchMock.mock.calls[0][0]).toBe("/api/product/generate");
   expect(fetchMock.mock.calls[0][1]?.body).toBeInstanceOf(FormData);
   expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ "X-Product-Studio-Request": "1" });
-  expect(fetchMock.mock.calls[1][0]).toBe("/api/product/jobs/job%2F1");
+  expect(fetchMock.mock.calls[1][0]).toBe("/api/product/jobs/signed.job%2Ftoken");
+  expect(checked.providerJobId).toBe(opaqueJobToken);
   expect(checked.planItemId).toBe("caller-item");
 });
 

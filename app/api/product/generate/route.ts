@@ -1,7 +1,8 @@
 import { GenerationSettingsSchema, PlanItemSchema } from "@/features/product-studio/model";
-import { signDownloadUrl } from "@/lib/download-token";
+import { signDownloadUrl, signJobToken } from "@/lib/download-token";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
+import { createImageRenderConfig, inlineResultUrl } from "@/lib/image-render-config";
 import { validateProductImages, validateProductPostRequest } from "@/lib/product-upload";
 import { ZodError } from "zod";
 
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
       throw error;
     }
 
+    const render = createImageRenderConfig(item, settings);
     const dataUrls = await Promise.all(images.map(async (file) => (
       `data:${file.type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`
     )));
@@ -42,17 +44,26 @@ export async function POST(request: Request) {
       quality: settings.quality,
     });
     const result = job.status === "succeeded" ? job.results[0] : undefined;
+    const status = result ? "succeeded" : job.status === "succeeded" ? "running" : job.status;
+    const signedResult = result
+      ? (() => {
+          const downloadToken = signDownloadUrl(result.url, render, tokenSecret);
+          return {
+            resultUrl: inlineResultUrl(request.url, downloadToken),
+            downloadToken,
+          };
+        })()
+      : {};
 
     return Response.json({
       task: {
         planItemId: item.id,
-        providerJobId: job.id,
-        status: result ? "succeeded" : job.status === "succeeded" ? "running" : job.status,
-        progress: job.progress,
-        ...(result ? {
-          resultUrl: result.url,
-          downloadToken: signDownloadUrl(result.url, tokenSecret),
+        ...(status === "running" ? {
+          providerJobId: signJobToken(job.id, render, tokenSecret),
         } : {}),
+        status,
+        progress: job.progress,
+        ...signedResult,
         ...(job.error ? { error: job.error } : {}),
       },
     });

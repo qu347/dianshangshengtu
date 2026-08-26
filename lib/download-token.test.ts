@@ -59,6 +59,12 @@ describe("render-context tokens", () => {
     expect(() => verifyDownloadToken(job, "secret", 120)).toThrow("下载令牌无效");
   });
 
+  it("rejects signed download payloads without a discriminator", () => {
+    const token = tokenFor({ url: "https://cdn.example/image.png", exp: 160 });
+
+    expect(() => verifyDownloadToken(token, "secret", 120)).toThrow("下载令牌无效");
+  });
+
   it("rejects non-HTTPS source URLs without exposing them", () => {
     const unsafeUrl = "http://127.0.0.1/private-resource";
     const token = tokenFor({ kind: "download", url: unsafeUrl, render, exp: 160 });
@@ -140,28 +146,5 @@ describe("render-context tokens", () => {
       });
       expect(() => verifyJobToken(token, "secret", 120)).toThrow("任务令牌无效");
     }
-  });
-});
-
-describe("legacy download-token compatibility", () => {
-  it("round trips existing route tokens until their render-context migration", () => {
-    const token = signDownloadUrl("https://cdn.example/result.png", "secret", 1_000, 60);
-
-    expect(verifyDownloadToken(token, "secret", 1_030)).toBe("https://cdn.example/result.png");
-    expect(() => verifyDownloadToken(`${token}x`, "secret", 1_030)).toThrow("下载令牌无效");
-    expect(() => verifyDownloadToken(token, "secret", 1_061)).toThrow("下载令牌已过期");
-  });
-
-  it("refuses non-HTTPS URLs", () => {
-    expect(() => signDownloadUrl("http://127.0.0.1/private", "secret", 1_000, 60)).toThrow(
-      "仅允许 HTTPS 图片地址",
-    );
-  });
-
-  it("uses a 15-minute default lifetime", () => {
-    const token = signDownloadUrl("https://cdn.example/result.png", "secret", 1_000);
-
-    expect(verifyDownloadToken(token, "secret", 1_900)).toBe("https://cdn.example/result.png");
-    expect(() => verifyDownloadToken(token, "secret", 1_901)).toThrow("下载令牌已过期");
   });
 });

@@ -3,13 +3,24 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { getGenerationStatusClient } from "@/features/product-studio/lib/client-api";
 import { pollGenerationJob } from "@/features/product-studio/lib/generation-runner";
-import { signDownloadUrl } from "@/lib/download-token";
+import { signJobToken, verifyDownloadToken } from "@/lib/download-token";
+import type { ImageRenderConfig } from "@/lib/image-render-config";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { getImageGenerationResult } from "@/lib/grsai/images";
 import { GET } from "./route";
 
 vi.mock("@/lib/grsai/images", () => ({ getImageGenerationResult: vi.fn() }));
-vi.mock("@/lib/download-token", () => ({ signDownloadUrl: vi.fn(() => "signed-token") }));
+
+const render: ImageRenderConfig = {
+  imageIndex: 2,
+  annotations: [{ label: "Height", displayValue: "4.72 in" }],
+  watermark: "Brand",
+  applyWatermark: true,
+};
+
+function jobToken() {
+  return signJobToken("job-1", render, "test-secret");
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -23,7 +34,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("signs only the first successful result URL", async () => {
+it("queries the raw provider id internally and signs the rendered result", async () => {
+  const token = jobToken();
   vi.mocked(getImageGenerationResult).mockResolvedValue({
     id: "job-1",
     status: "succeeded",
@@ -35,24 +47,30 @@ it("signs only the first successful result URL", async () => {
   });
 
   const response = await GET(
-    new Request("http://localhost/api/product/jobs/job-1"),
-    { params: Promise.resolve({ id: "job-1" }) },
+    new Request(`http://localhost/api/product/jobs/${token}`),
+    { params: Promise.resolve({ id: token }) },
   );
+  const body = await response.json();
 
-  expect(signDownloadUrl).toHaveBeenCalledTimes(1);
-  expect(signDownloadUrl).toHaveBeenCalledWith("https://cdn.example/result.png", "test-secret");
-  expect(await response.json()).toEqual({
-    task: {
-      providerJobId: "job-1",
-      status: "succeeded",
-      progress: 100,
-      resultUrl: "https://cdn.example/result.png",
-      downloadToken: "signed-token",
-    },
+  expect(getImageGenerationResult).toHaveBeenCalledWith("job-1");
+  expect(body.task).toMatchObject({
+    providerJobId: token,
+    status: "succeeded",
+    progress: 100,
+  });
+  const resultUrl = new URL(body.task.resultUrl);
+  expect(resultUrl.origin).toBe("http://localhost");
+  expect(resultUrl.pathname).toBe("/api/product/download");
+  expect(resultUrl.searchParams.get("inline")).toBe("1");
+  expect(resultUrl.searchParams.get("token")).toBe(body.task.downloadToken);
+  expect(verifyDownloadToken(body.task.downloadToken, "test-secret")).toEqual({
+    url: "https://cdn.example/result.png",
+    render,
   });
 });
 
-it("does not sign running jobs", async () => {
+it("preserves the same opaque job token while the provider is still running", async () => {
+  const token = jobToken();
   vi.mocked(getImageGenerationResult).mockResolvedValue({
     id: "job-1",
     status: "running",
@@ -61,33 +79,34 @@ it("does not sign running jobs", async () => {
   });
 
   const response = await GET(
-    new Request("http://localhost/api/product/jobs/job-1"),
-    { params: Promise.resolve({ id: "job-1" }) },
+    new Request(`http://localhost/api/product/jobs/${token}`),
+    { params: Promise.resolve({ id: token }) },
   );
 
-  expect(signDownloadUrl).not.toHaveBeenCalled();
+  expect(getImageGenerationResult).toHaveBeenCalledWith("job-1");
   expect(await response.json()).toEqual({
-    task: { providerJobId: "job-1", status: "running", progress: 45 },
+    task: { providerJobId: token, status: "running", progress: 45 },
   });
 });
 
 it("returns moderation as a terminal failed task that the client runner preserves", async () => {
+  const token = jobToken();
   vi.mocked(getImageGenerationResult).mockRejectedValue(
     new GrsaiError("moderation", "图片未通过内容审核", 422),
   );
-  const routeRequest = new Request("http://localhost/api/product/jobs/job-1");
+  const routeRequest = new Request(`http://localhost/api/product/jobs/${token}`);
   let routeResponse: Response | undefined;
   vi.stubGlobal("fetch", vi.fn(async () => {
     routeResponse = await GET(
       routeRequest,
-      { params: Promise.resolve({ id: "job-1" }) },
+      { params: Promise.resolve({ id: token }) },
     );
     return routeResponse;
   }));
 
   const changes: Array<{ status: string; error?: string }> = [];
   const task = await pollGenerationJob({
-    providerJobId: "job-1",
+    providerJobId: token,
     planItemId: "item-1",
     api: { status: getGenerationStatusClient },
     onTaskChange: (change) => changes.push(change),
@@ -95,7 +114,7 @@ it("returns moderation as a terminal failed task that the client runner preserve
 
   expect(task).toEqual({
     planItemId: "item-1",
-    providerJobId: "job-1",
+    providerJobId: token,
     status: "failed",
     progress: 0,
     error: "图片未通过内容审核",
@@ -106,6 +125,7 @@ it("returns moderation as a terminal failed task that the client runner preserve
 });
 
 it("rejects provider success without a result instead of emitting incomplete UI success", async () => {
+  const token = jobToken();
   vi.mocked(getImageGenerationResult).mockResolvedValue({
     id: "job-1",
     status: "succeeded",
@@ -114,24 +134,35 @@ it("rejects provider success without a result instead of emitting incomplete UI 
   });
 
   const response = await GET(
-    new Request("http://localhost/api/product/jobs/job-1"),
-    { params: Promise.resolve({ id: "job-1" }) },
+    new Request(`http://localhost/api/product/jobs/${token}`),
+    { params: Promise.resolve({ id: token }) },
   );
 
   expect(response.status).toBe(502);
   expect(await response.json()).toEqual({ error: "图片生成结果尚不可用，请继续查询" });
-  expect(signDownloadUrl).not.toHaveBeenCalled();
 });
 
 it("returns 503 when either server secret is missing", async () => {
+  const token = jobToken();
   delete process.env.DOWNLOAD_TOKEN_SECRET;
 
   const response = await GET(
-    new Request("http://localhost/api/product/jobs/job-1"),
-    { params: Promise.resolve({ id: "job-1" }) },
+    new Request(`http://localhost/api/product/jobs/${token}`),
+    { params: Promise.resolve({ id: token }) },
   );
 
   expect(response.status).toBe(503);
   expect(await response.json()).toEqual({ error: "图片生成服务尚未配置" });
+  expect(getImageGenerationResult).not.toHaveBeenCalled();
+});
+
+it("rejects an invalid job token before querying the provider", async () => {
+  const response = await GET(
+    new Request("http://localhost/api/product/jobs/not-a-token"),
+    { params: Promise.resolve({ id: "not-a-token" }) },
+  );
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: "任务编号无效" });
   expect(getImageGenerationResult).not.toHaveBeenCalled();
 });

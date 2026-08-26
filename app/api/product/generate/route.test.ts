@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { defaultSettings, makePlanItems } from "@/features/product-studio/test-fixtures";
-import { verifyDownloadToken } from "@/lib/download-token";
+import { verifyDownloadToken, verifyJobToken } from "@/lib/download-token";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
 import { POST } from "./route";
 
@@ -101,7 +101,7 @@ it("rejects invalid settings and plan items at the untrusted route boundary", as
   expect(submitImageGeneration).not.toHaveBeenCalled();
 });
 
-it("returns a normalized task with the caller plan item id", async () => {
+it("returns a signed job token that keeps the render config with a running submission", async () => {
   vi.mocked(submitImageGeneration).mockResolvedValue({
     id: "job-1",
     status: "running",
@@ -118,17 +118,33 @@ it("returns a normalized task with the caller plan item id", async () => {
     aspectRatio: "1024x1536",
     quality: "auto",
   });
-  expect(await response.json()).toEqual({
+  const body = await response.json();
+
+  expect(body).toMatchObject({
     task: {
       planItemId: "1",
-      providerJobId: "job-1",
       status: "running",
       progress: 0,
     },
   });
+  expect(body.task.providerJobId).not.toBe("job-1");
+  expect(verifyJobToken(body.task.providerJobId, "download-secret")).toEqual({
+    providerJobId: "job-1",
+    render: {
+      imageIndex: 1,
+      annotations: [],
+      watermark: "",
+      applyWatermark: false,
+    },
+  });
 });
 
-it("returns a signed result when the provider completes during submission", async () => {
+it("returns an inline same-origin result with the identical signed render config", async () => {
+  const item = {
+    ...makePlanItems(2)[1],
+    annotations: [{ label: "杯高", displayValue: "12 cm" }],
+  };
+  const settings = { ...defaultSettings, watermark: "Brand" };
   vi.mocked(submitImageGeneration).mockResolvedValue({
     id: "job-1",
     status: "succeeded",
@@ -136,23 +152,35 @@ it("returns a signed result when the provider completes during submission", asyn
     results: [{ url: "https://cdn.example/result.png" }],
   });
 
-  const response = await POST(generationRequest(generationForm()));
+  const response = await POST(generationRequest(generationForm({ item, settings })));
   const body = await response.json();
 
   expect(body).toMatchObject({
     task: {
-      planItemId: "1",
-      providerJobId: "job-1",
+      planItemId: "2",
       status: "succeeded",
       progress: 100,
-      resultUrl: "https://cdn.example/result.png",
     },
   });
+  expect(body.task).not.toHaveProperty("providerJobId");
+  const resultUrl = new URL(body.task.resultUrl);
+  expect(resultUrl.origin).toBe("http://localhost");
+  expect(resultUrl.pathname).toBe("/api/product/download");
+  expect(resultUrl.searchParams.get("inline")).toBe("1");
+  expect(resultUrl.searchParams.get("token")).toBe(body.task.downloadToken);
   expect(verifyDownloadToken(body.task.downloadToken, "download-secret"))
-    .toBe("https://cdn.example/result.png");
+    .toEqual({
+      url: "https://cdn.example/result.png",
+      render: {
+        imageIndex: 2,
+        annotations: [{ label: "杯高", displayValue: "12 cm" }],
+        watermark: "Brand",
+        applyWatermark: true,
+      },
+    });
 });
 
-it("keeps an incomplete immediate success resumable under the paid provider job id", async () => {
+it("keeps an incomplete immediate success resumable without exposing the paid provider job id", async () => {
   vi.mocked(submitImageGeneration).mockResolvedValue({
     id: "job-1",
     status: "succeeded",
@@ -162,14 +190,19 @@ it("keeps an incomplete immediate success resumable under the paid provider job 
 
   const response = await POST(generationRequest(generationForm()));
 
+  const body = await response.json();
+
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({
+  expect(body).toMatchObject({
     task: {
       planItemId: "1",
-      providerJobId: "job-1",
       status: "running",
       progress: 100,
     },
+  });
+  expect(body.task.providerJobId).not.toBe("job-1");
+  expect(verifyJobToken(body.task.providerJobId, "download-secret")).toMatchObject({
+    providerJobId: "job-1",
   });
 });
 

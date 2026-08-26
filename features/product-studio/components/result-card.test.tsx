@@ -30,12 +30,30 @@ it("distinguishes a retry submission from the first submission", () => {
 });
 
 it("shows the result and download after success", () => {
-  render(<ResultCard item={item} task={{ planItemId: item.id, status: "succeeded", progress: 100, resultUrl: "https://cdn.example/result.png", downloadToken: "token" }} {...handlers} />);
+  const whiteBackgroundItem = { ...item, title: "白底商品主图" };
+  render(<ResultCard item={whiteBackgroundItem} task={{ planItemId: item.id, status: "succeeded", progress: 100, resultUrl: "https://cdn.example/result.png", downloadToken: "token" }} {...handlers} />);
 
-  expect(screen.getByRole("img", { name: "生成结果：白底主图" })).toBeInTheDocument();
+  expect(screen.getAllByText("白底商品主图")).toHaveLength(2);
+  expect(screen.getByRole("img", { name: "生成结果：白底商品主图" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "查看大图" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "下载" })).toBeEnabled();
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+});
+
+it("shows the dimensions title only for a plan item that carries it", () => {
+  const dimensionsItem = { ...makePlanItems(2)[1], title: "尺寸标注图" };
+
+  const { rerender } = render(
+    <ResultCard item={dimensionsItem} task={{ planItemId: dimensionsItem.id, status: "running", progress: 40 }} {...handlers} />,
+  );
+  expect(screen.getAllByText("尺寸标注图")).toHaveLength(2);
+
+  rerender(
+    <ResultCard item={{ ...dimensionsItem, title: "场景卖点图" }} task={{ planItemId: dimensionsItem.id, status: "running", progress: 40 }} {...handlers} />,
+  );
+  expect(screen.queryByText("尺寸标注图")).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "场景卖点图" })).toBeInTheDocument();
+  expect(screen.getByText("详情图")).toBeInTheDocument();
 });
 
 it("closes the result dialog and returns focus to its trigger", async () => {

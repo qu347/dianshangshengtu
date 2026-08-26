@@ -1,5 +1,4 @@
 import { verifyDownloadToken } from "@/lib/download-token";
-import type { ImageRenderConfig } from "@/lib/image-render-config";
 import { renderProductImage } from "@/lib/product-image-renderer";
 
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -17,13 +16,6 @@ const RESPONSE_HEADERS = {
   "Cache-Control": "private, no-store",
   "X-Content-Type-Options": "nosniff",
 };
-const LEGACY_RENDER_CONFIG: ImageRenderConfig = {
-  imageIndex: 1,
-  annotations: [],
-  watermark: "",
-  applyWatermark: false,
-};
-
 function downloadFilename(url: string) {
   const pathname = new URL(url).pathname;
   let candidate = pathname.split("/").pop() ?? "";
@@ -76,21 +68,13 @@ export async function GET(request: Request) {
   const token = requestUrl.searchParams.get("token");
   if (!token) return errorResponse("下载令牌无效或已过期", 400);
 
-  let resultUrl: string;
-  let render: ImageRenderConfig;
+  let verified: ReturnType<typeof verifyDownloadToken>;
   try {
-    const verified = verifyDownloadToken(token, tokenSecret);
-    if (typeof verified === "string") {
-      resultUrl = verified;
-      render = LEGACY_RENDER_CONFIG;
-    } else {
-      resultUrl = verified.url;
-      render = verified.render;
-    }
-    if (new URL(resultUrl).protocol !== "https:") throw new Error("仅允许 HTTPS 图片地址");
+    verified = verifyDownloadToken(token, tokenSecret);
   } catch {
     return errorResponse("下载令牌无效或已过期", 400);
   }
+  const { url: resultUrl, render } = verified;
 
   try {
     const upstream = await fetch(resultUrl, {

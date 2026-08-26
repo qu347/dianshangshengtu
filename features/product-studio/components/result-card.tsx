@@ -20,6 +20,9 @@ export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload,
   const viewButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = `result-title-${item.id}`;
   const imageLabel = `生成结果：${item.title}`;
+  const typeLabel = item.title === "白底商品主图" || item.title === "尺寸标注图"
+    ? item.title
+    : item.type === "main" ? "主图" : "详情图";
   const isInProgress = task.status === "queued" || task.status === "submitting" || task.status === "running";
   const progressLabel = task.status === "queued" ? "等待生成" : task.status === "submitting" ? retrying ? "正在重新提交…" : "正在提交" : "生成中";
 
@@ -36,7 +39,7 @@ export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload,
             <h3 id={titleId} className="font-semibold text-[#292c32]">{item.title}</h3>
             <p className="mt-1 text-xs leading-5 text-[#777c86]">{item.objective}</p>
           </div>
-          <span className="shrink-0 rounded-full bg-[#f1efff] px-2 py-1 text-[11px] text-[#6255b4]">{item.type === "main" ? "主图" : "详情图"}</span>
+          <span className="shrink-0 rounded-full bg-[#f1efff] px-2 py-1 text-[11px] text-[#6255b4]">{typeLabel}</span>
         </div>
       </header>
 

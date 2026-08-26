@@ -85,6 +85,19 @@ describe("signed download proxy", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a signed legacy payload without fetching an upstream URL", async () => {
+    const token = signedTokenFor({
+      url: "https://cdn.example/result.jpg",
+      exp: Math.floor(Date.now() / 1_000) + 60,
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(imageResponse());
+
+    const response = await GET(requestFor(token));
+
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("rejects even correctly signed non-HTTPS source URLs before fetching", async () => {
     const token = signedTokenFor({
       kind: "download",
