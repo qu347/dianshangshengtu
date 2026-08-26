@@ -29,46 +29,59 @@ export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload,
   }
 
   return (
-    <article className="rounded-lg border border-black/15 p-3" aria-labelledby={titleId}>
-      <h3 id={titleId} className="font-medium">{item.title}</h3>
-      <p className="mt-1 text-sm text-black/55">{item.objective}</p>
+    <article className="overflow-hidden rounded-xl border border-[#dfe2e8] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]" aria-labelledby={titleId}>
+      <header className="border-b border-[#eceef2] px-4 py-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 id={titleId} className="font-semibold text-[#292c32]">{item.title}</h3>
+            <p className="mt-1 text-xs leading-5 text-[#777c86]">{item.objective}</p>
+          </div>
+          <span className="shrink-0 rounded-full bg-[#f1efff] px-2 py-1 text-[11px] text-[#6255b4]">{item.type === "main" ? "主图" : "详情图"}</span>
+        </div>
+      </header>
 
       {isInProgress && (
-        <div className="mt-3">
-          <p>{progressLabel}</p>
-          <progress className="mt-2 w-full" max={100} value={task.progress}>{task.progress}%</progress>
+        <div className="flex min-h-56 flex-col items-center justify-center bg-[#fafbfc] px-5 py-8 text-center">
+          <span aria-hidden="true" className="flex size-11 items-center justify-center rounded-full bg-[#eeebff] text-[#675ab8]">•••</span>
+          <p className="mt-3 text-sm font-medium text-[#343840]">{progressLabel}</p>
+          <progress aria-label={`${item.title}生成进度`} className="mt-3 h-2 w-full max-w-64 overflow-hidden rounded-full" max={100} value={task.progress}>{task.progress}%</progress>
+          <p className="mt-2 text-xs text-[#8a8f99]">生图通常需要几分钟，请保持页面打开</p>
         </div>
       )}
 
       {task.status === "succeeded" && task.resultUrl && (
-        <div className="mt-3">
-          <Image unoptimized width={1024} height={1024} className="aspect-square h-auto w-full rounded-lg object-contain" src={task.resultUrl} alt={imageLabel} />
-          <div className="mt-3 flex gap-2">
-            <button ref={viewButtonRef} className="rounded-lg border border-black/15 px-3 py-2" type="button" onClick={() => setDialogOpen(true)}>查看大图</button>
-            <button className="rounded-lg bg-violet-700 px-3 py-2 text-white disabled:opacity-60" type="button" disabled={busy || downloadBusy || !task.downloadToken} onClick={() => onDownload(task)}>下载</button>
+        <div>
+          <div className="bg-[#f3f4f6] p-3">
+            <Image unoptimized width={1024} height={1024} className="aspect-[4/5] h-auto w-full rounded-lg bg-white object-contain" src={task.resultUrl} alt={imageLabel} />
+          </div>
+          <div className="flex gap-2 px-4 py-3">
+            <button ref={viewButtonRef} className="flex-1 rounded-lg border border-[#d5d8df] bg-white px-3 py-2 text-sm font-medium text-[#343840] transition hover:bg-[#f6f7f9]" type="button" onClick={() => setDialogOpen(true)}>查看大图</button>
+            <button className="flex-1 rounded-lg bg-[#6d5ce7] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#5d4dd0] disabled:opacity-50" type="button" disabled={busy || downloadBusy || !task.downloadToken} onClick={() => onDownload(task)}>下载</button>
           </div>
         </div>
       )}
 
       {task.status === "failed" && (
-        <div className="mt-3">
-          <p className="text-red-700" role="alert">{task.error ?? "生成失败"}</p>
-          <button className="mt-3 rounded-lg border border-black/15 px-3 py-2 disabled:opacity-60" type="button" disabled={busy} onClick={() => onRetry(item)}>重试此图</button>
-          {busy && <p className="mt-2 text-sm text-black/55">当前批次生成中，完成后可重试</p>}
+        <div className="min-h-56 bg-red-50/60 px-4 py-5">
+          <span className="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">生成失败</span>
+          <p className="mt-3 text-sm leading-6 text-red-700" role="alert">{task.error ?? "生成失败"}</p>
+          <button className="mt-4 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={busy} onClick={() => onRetry(item)}>重试此图</button>
+          {busy && <p className="mt-2 text-xs leading-5 text-[#777c86]">当前批次生成中，完成后可重试</p>}
         </div>
       )}
 
       {task.status === "timed_out" && (
-        <div className="mt-3">
-          <p>{task.error ?? "查询超时，任务仍可能在生成"}</p>
-          <button className="mt-3 rounded-lg border border-black/15 px-3 py-2 disabled:opacity-60" type="button" disabled={busy || !task.providerJobId} onClick={() => onContinuePolling(task)}>继续查询</button>
+        <div className="min-h-56 bg-amber-50/60 px-4 py-5">
+          <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">等待结果</span>
+          <p className="mt-3 text-sm leading-6 text-amber-900">{task.error ?? "查询超时，任务仍可能在生成"}</p>
+          <button className="mt-4 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-50 disabled:opacity-50" type="button" disabled={busy || !task.providerJobId} onClick={() => onContinuePolling(task)}>继续查询</button>
         </div>
       )}
 
       {dialogOpen && task.status === "succeeded" && task.resultUrl && (
-        <dialog open aria-label={imageLabel} className="m-auto max-h-[90vh] max-w-[90vw] rounded-xl p-4 backdrop:bg-black/60">
+        <dialog open aria-label={imageLabel} className="m-auto max-h-[90vh] max-w-[90vw] rounded-2xl border-0 p-4 shadow-2xl backdrop:bg-black/60">
           <Image unoptimized width={1024} height={1024} className="h-auto max-h-[80vh] w-auto max-w-full object-contain" src={task.resultUrl} alt={imageLabel} />
-          <button className="mt-3 rounded-lg border border-black/15 px-3 py-2" type="button" onClick={closeDialog}>关闭大图</button>
+          <button className="mt-3 rounded-lg border border-[#d5d8df] px-3 py-2 text-sm font-medium" type="button" onClick={closeDialog}>关闭大图</button>
         </dialog>
       )}
     </article>

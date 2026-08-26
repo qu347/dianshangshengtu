@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
 * { box-sizing: border-box; }
-body { margin: 0; font-family: Arial, "Microsoft YaHei", sans-serif; }
+html { background: #f5f6f8; }
+body {
+  margin: 0;
+  background: #f5f6f8;
+  color: #17191d;
+  font-family: Arial, "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
 button, input, select, textarea { font: inherit; }
+button:not(:disabled), select:not(:disabled), input[type="file"]:not(:disabled) { cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 2px solid #6d5ce7;
+  outline-offset: 2px;
+}
+::selection { background: #ded9ff; }
+progress { accent-color: #6d5ce7; }

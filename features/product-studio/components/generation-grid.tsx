@@ -20,11 +20,14 @@ export function GenerationGrid({ items, tasks, onRetry, onContinuePolling, onDow
 
   return (
     <section aria-labelledby="generation-results-title">
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="generation-results-title" className="font-medium">生成结果</h2>
-        <button className="rounded-lg bg-violet-700 px-4 py-2 text-white disabled:opacity-60" type="button" disabled={busy || downloadBusy || !canDownloadAll} onClick={onDownloadAll}>下载全部</button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-[#7b808b]">GENERATED ASSETS</p>
+          <h2 id="generation-results-title" className="mt-1 text-base font-semibold">生成结果</h2>
+        </div>
+        <button className="rounded-lg bg-[#17191d] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40" type="button" disabled={busy || downloadBusy || !canDownloadAll} onClick={onDownloadAll}>下载全部</button>
       </div>
-      <p className="mt-2 text-sm text-black/55">结果链接为临时链接，请在当前会话内及时下载保存。</p>
+      <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">结果链接为临时链接，请在当前会话内及时下载保存。</p>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         {items.map((item) => (
           <ResultCard

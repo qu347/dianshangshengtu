@@ -15,29 +15,32 @@ type GenerationSettingsFormProps = {
 };
 
 export function GenerationSettingsForm({ value, onChange, disabled = false }: GenerationSettingsFormProps) {
+  const labelClass = "block text-xs font-medium text-[#5f646e]";
+  const selectClass = "mt-1.5 block h-10 w-full rounded-lg border border-[#d8dbe2] bg-white px-3 text-sm text-[#24272d] transition focus:border-[#8175e5] disabled:cursor-not-allowed disabled:bg-[#f3f4f6] disabled:text-[#9a9ea7]";
+
   return (
-    <div>
-      <label>
+    <div className="grid grid-cols-2 gap-3">
+      <label className={labelClass}>
         平台
-        <select aria-label="平台" disabled={disabled} value={value.platform} onChange={(event) => onChange({ platform: event.currentTarget.value as GenerationSettings["platform"] })}>
+        <select className={selectClass} aria-label="平台" disabled={disabled} value={value.platform} onChange={(event) => onChange({ platform: event.currentTarget.value as GenerationSettings["platform"] })}>
           {PLATFORM_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
-      <label>
+      <label className={labelClass}>
         语言
-        <select aria-label="语言" disabled={disabled} value={value.language} onChange={(event) => onChange({ language: event.currentTarget.value as GenerationSettings["language"] })}>
+        <select className={selectClass} aria-label="语言" disabled={disabled} value={value.language} onChange={(event) => onChange({ language: event.currentTarget.value as GenerationSettings["language"] })}>
           {LANGUAGE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
-      <label>
+      <label className={labelClass}>
         图片比例
-        <select aria-label="图片比例" disabled={disabled} value={value.aspectRatio} onChange={(event) => onChange({ aspectRatio: event.currentTarget.value as GenerationSettings["aspectRatio"] })}>
+        <select className={selectClass} aria-label="图片比例" disabled={disabled} value={value.aspectRatio} onChange={(event) => onChange({ aspectRatio: event.currentTarget.value as GenerationSettings["aspectRatio"] })}>
           {RATIO_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
-      <label>
+      <label className={labelClass}>
         生成数量
-        <select aria-label="生成数量" disabled={disabled} value={value.imageCount} onChange={(event) => onChange({ imageCount: Number(event.currentTarget.value) })}>
+        <select className={selectClass} aria-label="生成数量" disabled={disabled} value={value.imageCount} onChange={(event) => onChange({ imageCount: Number(event.currentTarget.value) })}>
           {Array.from({ length: 16 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>{count} 张</option>)}
         </select>
       </label>

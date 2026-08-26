@@ -50,6 +50,14 @@ async function renderSuccessfulStudio() {
   await screen.findByRole("img", { name: "生成结果：白底主图" });
 }
 
+it("renders the product studio as a configuration and creation workspace", () => {
+  render(<ProductStudio api={{ analyze: vi.fn().mockResolvedValue(analysisWithTwoItems), ...unusedGenerationApi }} />);
+
+  expect(screen.getByRole("heading", { name: "商品视觉工作台" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "项目配置" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "创作工作台" })).toBeInTheDocument();
+});
+
 it("uploads a product and shows the analysis", async () => {
   const analyze = vi.fn().mockResolvedValue(analysisWithTwoItems);
   render(<ProductStudio api={{ analyze, ...unusedGenerationApi }} />);
