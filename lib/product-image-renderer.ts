@@ -24,7 +24,10 @@ function glyphWidth(char: string) {
   if (/\s/u.test(char)) return 0.33;
   const codePoint = char.codePointAt(0) ?? 0;
   if (codePoint >= 0x2e80 || codePoint > 0xffff) return 1.05;
-  if (codePoint >= 0x0400 && codePoint <= 0x052f) return 0.7;
+  if (codePoint >= 0x0400 && codePoint <= 0x052f) {
+    const isUppercase = char === char.toUpperCase() && char !== char.toLowerCase();
+    return isUppercase ? 1.25 : 0.8;
+  }
   if (/[MW@#%]/u.test(char)) return 0.85;
   if (/[A-Z]/u.test(char)) return 0.68;
   if (/[a-z0-9]/u.test(char)) return 0.56;
@@ -168,6 +171,9 @@ function watermarkSvg(width: number, height: number, watermark: string) {
 }
 
 export async function renderProductImage(input: Buffer, config: ImageRenderConfig): Promise<Buffer> {
+  const inputMetadata = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).metadata();
+  if (inputMetadata.format === "svg") throw new Error("不支持 SVG 图片");
+
   const { data: normalized, info } = await sharp(input, {
     limitInputPixels: MAX_INPUT_PIXELS,
   }).rotate().png().toBuffer({ resolveWithObject: true });

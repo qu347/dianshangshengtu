@@ -191,6 +191,27 @@ describe("signed download proxy", () => {
     expect(await response.json()).toEqual({ error: "图片下载失败，请稍后重试" });
   });
 
+  it("refuses actual SVG bytes mislabeled as an allowed raster MIME", async () => {
+    const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+      <rect width="100%" height="100%" fill="#eeeeee" />
+    </svg>`);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Uint8Array(svg), {
+        status: 200,
+        headers: { "Content-Type": "image/png" },
+      }),
+    );
+
+    const response = await GET(requestFor(downloadToken()));
+    const responseBytes = Buffer.from(await response.arrayBuffer());
+
+    expect(response.status).toBe(502);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(JSON.parse(responseBytes.toString())).toEqual({ error: "图片下载失败，请稍后重试" });
+    expect(responseBytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
+      .toBe(false);
+  });
+
   it("returns a clear proxy failure instead of falling back to raw bytes when rendering fails", async () => {
     const rawBytes = new Uint8Array([1, 2, 3]);
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
