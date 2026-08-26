@@ -1,15 +1,17 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { defaultSettings, makePlanItems } from "@/features/product-studio/test-fixtures";
+import { analysisWithTwoItems, defaultSettings, makePlanItems } from "@/features/product-studio/test-fixtures";
 import { verifyDownloadToken, verifyJobToken } from "@/lib/download-token";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
+import { validateGeneratedImage } from "@/lib/product-image-validation";
 import { POST } from "./route";
 
 vi.mock("@/lib/grsai/images", () => ({
   buildGenerationPrompt: vi.fn(() => "final prompt"),
   submitImageGeneration: vi.fn(),
 }));
+vi.mock("@/lib/product-image-validation", () => ({ validateGeneratedImage: vi.fn() }));
 
 const webpSignature = new Uint8Array([
   0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
@@ -45,6 +47,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.GRSAI_API_KEY = "test-key";
   process.env.DOWNLOAD_TOKEN_SECRET = "download-secret";
+  vi.mocked(validateGeneratedImage).mockResolvedValue({ ok: true });
 });
 
 afterEach(() => {
@@ -101,6 +104,17 @@ it("rejects invalid settings and plan items at the untrusted route boundary", as
   expect(submitImageGeneration).not.toHaveBeenCalled();
 });
 
+it.each(["01", "not-an-index", "3"])("rejects malformed or out-of-range plan id %s as 400", async (id) => {
+  const response = await POST(generationRequest(generationForm({
+    settings: { ...defaultSettings, imageCount: 2 },
+    item: { ...makePlanItems(1)[0], id },
+  })));
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: "生成参数或规划项无效" });
+  expect(submitImageGeneration).not.toHaveBeenCalled();
+});
+
 it("returns a signed job token that keeps the render config with a running submission", async () => {
   vi.mocked(submitImageGeneration).mockResolvedValue({
     id: "job-1",
@@ -141,7 +155,7 @@ it("returns a signed job token that keeps the render config with a running submi
 
 it("returns an inline same-origin result with the identical signed render config", async () => {
   const item = {
-    ...makePlanItems(2)[1],
+    ...analysisWithTwoItems.plan[1],
     annotations: [{ label: "杯高", displayValue: "12 cm" }],
   };
   const settings = { ...defaultSettings, watermark: "Brand" };
@@ -204,6 +218,35 @@ it("keeps an incomplete immediate success resumable without exposing the paid pr
   expect(verifyJobToken(body.task.providerJobId, "download-secret")).toMatchObject({
     providerJobId: "job-1",
   });
+});
+
+it("returns a non-white image-one result as a retryable failed task without signing it", async () => {
+  vi.mocked(submitImageGeneration).mockResolvedValue({
+    id: "job-1",
+    status: "succeeded",
+    progress: 100,
+    results: [{ url: "https://cdn.example/non-white.png" }],
+  });
+  vi.mocked(validateGeneratedImage).mockResolvedValue({
+    ok: false,
+    error: "白底商品主图不是纯白背景，请重试此图",
+  });
+
+  const response = await POST(generationRequest(generationForm({
+    settings: { ...defaultSettings, imageCount: 1 },
+    item: makePlanItems(1)[0],
+  })));
+  const body = await response.json();
+
+  expect(response.status).toBe(200);
+  expect(body.task).toEqual({
+    planItemId: "1",
+    status: "failed",
+    progress: 100,
+    error: "白底商品主图不是纯白背景，请重试此图",
+  });
+  expect(body.task).not.toHaveProperty("downloadToken");
+  expect(validateGeneratedImage).toHaveBeenCalledWith("https://cdn.example/non-white.png", 1);
 });
 
 it("returns 503 without calling the provider when the API key is absent", async () => {

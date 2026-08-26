@@ -1,6 +1,12 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { analysisWithTwoItems, defaultSettings } from "@/features/product-studio/test-fixtures";
+import type { PlanItem, ProductAnalysis } from "@/features/product-studio/model";
 import { analyzeProduct, buildAnalysisPrompt } from "./analysis";
+
+type ProviderPlanItem = Omit<PlanItem, "annotations"> & {
+  annotations: Array<{ id: string; label: string }>;
+};
+type ProviderAnalysisFixture = Omit<ProductAnalysis, "plan"> & { plan: ProviderPlanItem[] };
 
 const validInput = {
   images: ["data:image/png;base64,iVBORw0KGgo="],
@@ -11,8 +17,9 @@ const validInput = {
 };
 
 function providerAnalysisWithDimensions() {
-  const analysis = structuredClone(analysisWithTwoItems);
-  analysis.plan[1].annotations = [{ label: "杯高", displayValue: "12 cm" }];
+  const analysis = structuredClone(analysisWithTwoItems) as unknown as ProviderAnalysisFixture;
+  analysis.plan[0].annotations = [];
+  analysis.plan[1].annotations = [{ id: "height", label: "杯高" }];
   return analysis;
 }
 
@@ -65,8 +72,8 @@ it("requires Chinese planning fields and fixed dimension-image rules", () => {
   expect(prompt).toContain("所有标题、目标、场景和生图提示词必须使用中文");
   expect(prompt).toContain("第 1 项必须是白底商品主图");
   expect(prompt).toContain("第 2 项必须是尺寸标注图");
-  expect(prompt).toContain("将标注标签“杯高”翻译为英文");
-  expect(prompt).toContain("数值字符串“4.72 in”必须原样返回");
+  expect(prompt).toContain("返回尺寸 ID “height”及标注标签“杯高”的英文翻译");
+  expect(prompt).toContain("AI 不得返回或改写尺寸数值");
 });
 
 it("submits analysis with the available Grsai vision model", async () => {
@@ -221,15 +228,14 @@ it("retains original product context and provenance rules during repair", async 
   expect(repairRequest.messages[2].content).toContain("confidence 只能是 observed、inferred 或 user_provided");
   expect(repairRequest.messages[2].content).toContain("所有标题、目标、场景和生图提示词必须使用中文");
   expect(repairRequest.messages[2].content).toContain("杯高");
-  expect(repairRequest.messages[2].content).toContain("12 cm");
+  expect(repairRequest.messages[2].content).toContain("height");
+  expect(repairRequest.messages[2].content).not.toContain("12 cm");
 });
 
 it("repairs non-Chinese planning once and reapplies trusted plan values", async () => {
   const invalidAnalysis = providerAnalysisWithDimensions();
   invalidAnalysis.plan[0].prompt = "White background product photo";
-  invalidAnalysis.plan[1].annotations[0].displayValue = "provider changed this";
   const repairedAnalysis = providerAnalysisWithDimensions();
-  repairedAnalysis.plan[1].annotations = [{ label: "杯高", displayValue: "also untrusted" }];
   const fetchImpl = vi
     .fn()
     .mockResolvedValueOnce(new Response(JSON.stringify({
@@ -244,4 +250,69 @@ it("repairs non-Chinese planning once and reapplies trusted plan values", async 
   expect(fetchImpl).toHaveBeenCalledTimes(2);
   expect(result.plan[0]).toMatchObject({ type: "main", copy: "", scene: expect.stringContaining("纯白") });
   expect(result.plan[1].annotations).toEqual([{ label: "杯高", displayValue: "12 cm" }]);
+});
+
+it("repairs reordered stable dimension ids and binds labels to program-owned values", async () => {
+  const input = {
+    ...validInput,
+    dimensions: [
+      { id: "height", label: "杯高", value: 12, unit: "cm" as const },
+      { id: "capacity", label: "容量", value: 350, unit: "ml" as const },
+    ],
+  };
+  const reordered = providerAnalysisWithDimensions();
+  reordered.plan[1].annotations = [
+    { id: "capacity", label: "Capacity" },
+    { id: "height", label: "Height" },
+  ];
+  const repaired = providerAnalysisWithDimensions();
+  repaired.plan[1].annotations = [
+    { id: "height", label: "Height" },
+    { id: "capacity", label: "Capacity" },
+  ];
+  const fetchImpl = vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify(reordered) } }],
+    }), { status: 200 }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify(repaired) } }],
+    }), { status: 200 }));
+
+  const result = await analyzeProduct(input, fetchImpl);
+
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+  expect(result.plan[1].annotations).toEqual([
+    { label: "Height", displayValue: "12 cm" },
+    { label: "Capacity", displayValue: "350 mL" },
+  ]);
+});
+
+it.each([
+  ["duplicate", [
+    { id: "height", label: "Height" },
+    { id: "height", label: "Capacity" },
+  ]],
+  ["missing", [{ id: "height", label: "Height" }]],
+] as const)("rejects %s dimension ids after exactly one repair", async (_label, annotations) => {
+  const input = {
+    ...validInput,
+    dimensions: [
+      { id: "height", label: "杯高", value: 12, unit: "cm" as const },
+      { id: "capacity", label: "容量", value: 350, unit: "ml" as const },
+    ],
+  };
+  const invalid = providerAnalysisWithDimensions();
+  invalid.plan[1].annotations = [...annotations];
+  const response = new Response(JSON.stringify({
+    choices: [{ message: { content: JSON.stringify(invalid) } }],
+  }), { status: 200 });
+  const fetchImpl = vi.fn()
+    .mockResolvedValueOnce(response)
+    .mockResolvedValueOnce(new Response(await response.clone().text(), { status: 200 }));
+
+  await expect(analyzeProduct(input, fetchImpl)).rejects.toMatchObject({
+    code: "invalid_request",
+    message: "AI 分析结果格式异常，请重新分析",
+  });
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
 });

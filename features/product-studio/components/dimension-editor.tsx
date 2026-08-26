@@ -37,6 +37,9 @@ export function DimensionEditor({ value, imageCount, disabled = false, onChange 
         const labelTooLong = item.label.trim().length > 24;
         const valueError = !Number.isFinite(item.value) || item.value <= 0;
         const customUnitError = item.unit === "custom" && !item.customUnit?.trim();
+        const labelErrorId = `dimension-${item.id}-label-error`;
+        const valueErrorId = `dimension-${item.id}-value-error`;
+        const customUnitErrorId = `dimension-${item.id}-custom-unit-error`;
         return (
           <div key={item.id} className="rounded-xl border border-[#e4e7ec] bg-[#fafbfc] p-3">
             <div className="flex items-center justify-between gap-2">
@@ -45,14 +48,14 @@ export function DimensionEditor({ value, imageCount, disabled = false, onChange 
             </div>
             <label className="mt-2 block text-xs font-medium text-[#5f646e]">
               名称
-              <input className={inputClass} aria-label={`尺寸名称 ${rowNumber}`} maxLength={24} disabled={disabled} value={item.label} onChange={(event) => updateRow(index, { label: event.currentTarget.value })} />
+              <input className={inputClass} aria-label={`尺寸名称 ${rowNumber}`} aria-invalid={labelError || labelTooLong} aria-describedby={labelError || labelTooLong ? labelErrorId : undefined} maxLength={24} disabled={disabled} value={item.label} onChange={(event) => updateRow(index, { label: event.currentTarget.value })} />
             </label>
-            {labelError && <p className="mt-1 text-xs text-red-600">请填写尺寸名称</p>}
-            {labelTooLong && <p className="mt-1 text-xs text-red-600">尺寸名称最多 24 个字符</p>}
+            {labelError && <p id={labelErrorId} className="mt-1 text-xs text-red-600">请填写尺寸名称</p>}
+            {labelTooLong && <p id={labelErrorId} className="mt-1 text-xs text-red-600">尺寸名称最多 24 个字符</p>}
             <div className="mt-2 grid grid-cols-2 gap-2">
               <label className="block text-xs font-medium text-[#5f646e]">
                 数值
-                <input className={inputClass} aria-label={`尺寸数值 ${rowNumber}`} type="number" min="0" step="any" disabled={disabled} value={item.value || ""} onChange={(event) => updateRow(index, { value: Number(event.currentTarget.value) })} />
+                <input className={inputClass} aria-label={`尺寸数值 ${rowNumber}`} aria-invalid={valueError} aria-describedby={valueError ? valueErrorId : undefined} type="number" min="0" step="any" disabled={disabled} value={item.value || ""} onChange={(event) => updateRow(index, { value: Number(event.currentTarget.value) })} />
               </label>
               <label className="block text-xs font-medium text-[#5f646e]">
                 单位
@@ -64,14 +67,14 @@ export function DimensionEditor({ value, imageCount, disabled = false, onChange 
                 </select>
               </label>
             </div>
-            {valueError && <p className="mt-1 text-xs text-red-600">尺寸数值必须大于 0</p>}
+            {valueError && <p id={valueErrorId} className="mt-1 text-xs text-red-600">尺寸数值必须大于 0</p>}
             {item.unit === "custom" && (
               <label className="mt-2 block text-xs font-medium text-[#5f646e]">
                 自定义单位
-                <input className={inputClass} aria-label={`自定义单位 ${rowNumber}`} maxLength={12} disabled={disabled} value={item.customUnit ?? ""} onChange={(event) => updateRow(index, { customUnit: event.currentTarget.value })} />
+                <input className={inputClass} aria-label={`自定义单位 ${rowNumber}`} aria-invalid={customUnitError} aria-describedby={customUnitError ? customUnitErrorId : undefined} maxLength={12} disabled={disabled} value={item.customUnit ?? ""} onChange={(event) => updateRow(index, { customUnit: event.currentTarget.value })} />
               </label>
             )}
-            {customUnitError && <p className="mt-1 text-xs text-red-600">请填写自定义单位</p>}
+            {customUnitError && <p id={customUnitErrorId} className="mt-1 text-xs text-red-600">请填写自定义单位</p>}
           </div>
         );
       })}

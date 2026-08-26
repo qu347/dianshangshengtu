@@ -1,4 +1,5 @@
 import type { GenerationSettings, PlanItem } from "@/features/product-studio/model";
+import { targetLanguageDisplayName } from "@/features/product-studio/lib/platform-rules";
 import { GrsaiError } from "./errors";
 import { grsaiFetch } from "./http";
 
@@ -35,7 +36,7 @@ export function buildGenerationPrompt(item: PlanItem, settings: GenerationSettin
     `用户确认的提示词：${item.prompt}。`,
     settings.language === "none"
       ? "画面中不要生成任何文字。"
-      : `文案语言必须为 ${settings.language === "zh-CN" ? "中文" : "英文"}。`,
+      : `文案语言必须为 ${targetLanguageDisplayName(settings.language)}。`,
   ].filter(Boolean).join("\n");
 }
 

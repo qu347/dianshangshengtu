@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { vi } from "vitest";
 import { PlanEditor } from "./plan-editor";
-import { analysisWithTwoItems } from "../test-fixtures";
+import { analysisWithTwoItems, defaultSettings } from "../test-fixtures";
 
 const analysisWithLocalizedAnnotations = {
   ...analysisWithTwoItems,
@@ -24,7 +24,7 @@ it("edits one prompt without changing the remaining plan items", async () => {
   const user = userEvent.setup();
   function Harness() {
     const [analysis, setAnalysis] = useState(analysisWithTwoItems);
-    return <PlanEditor analysis={analysis} onChange={(nextAnalysis) => { onChange(nextAnalysis); setAnalysis(nextAnalysis); }} onReplan={vi.fn()} onConfirm={vi.fn()} />;
+    return <PlanEditor analysis={analysis} settings={defaultSettings} onChange={(nextAnalysis) => { onChange(nextAnalysis); setAnalysis(nextAnalysis); }} onReplan={vi.fn()} onConfirm={vi.fn()} />;
   }
   render(<Harness />);
 
@@ -39,7 +39,7 @@ it("edits one prompt without changing the remaining plan items", async () => {
 });
 
 it("keeps every plan text field editable with numbered Chinese prompt labels", () => {
-  render(<PlanEditor analysis={analysisWithTwoItems} onChange={vi.fn()} onReplan={vi.fn()} onConfirm={vi.fn()} />);
+  render(<PlanEditor analysis={analysisWithTwoItems} settings={defaultSettings} onChange={vi.fn()} onReplan={vi.fn()} onConfirm={vi.fn()} />);
 
   expect(screen.getAllByLabelText("类型")).toHaveLength(2);
   for (const label of ["标题", "画面目标", "文案", "场景"]) {
@@ -50,7 +50,7 @@ it("keeps every plan text field editable with numbered Chinese prompt labels", (
 });
 
 it("shows image 2 localized dimension annotations as read-only plan details", () => {
-  render(<PlanEditor analysis={analysisWithLocalizedAnnotations} onChange={vi.fn()} onReplan={vi.fn()} onConfirm={vi.fn()} />);
+  render(<PlanEditor analysis={analysisWithLocalizedAnnotations} settings={defaultSettings} onChange={vi.fn()} onReplan={vi.fn()} onConfirm={vi.fn()} />);
 
   const secondPlan = screen.getByRole("heading", { name: "第 02 张" }).closest("article");
   expect(secondPlan).not.toBeNull();
@@ -64,7 +64,7 @@ it("shows image 2 localized dimension annotations as read-only plan details", ()
 
 it("does not confirm while any required plan field is blank", () => {
   const onConfirm = vi.fn();
-  render(<PlanEditor analysis={{ ...analysisWithTwoItems, plan: [{ ...analysisWithTwoItems.plan[0], prompt: "" }] }} onChange={vi.fn()} onReplan={vi.fn()} onConfirm={onConfirm} />);
+  render(<PlanEditor analysis={{ ...analysisWithTwoItems, plan: [{ ...analysisWithTwoItems.plan[0], prompt: "" }] }} settings={{ ...defaultSettings, imageCount: 1 }} onChange={vi.fn()} onReplan={vi.fn()} onConfirm={onConfirm} />);
 
   expect(screen.getByRole("button", { name: "确认规划并生成" })).toBeDisabled();
 });
@@ -72,8 +72,22 @@ it("does not confirm while any required plan field is blank", () => {
 it("requests a complete new plan", async () => {
   const onReplan = vi.fn();
   const user = userEvent.setup();
-  render(<PlanEditor analysis={analysisWithTwoItems} onChange={vi.fn()} onReplan={onReplan} onConfirm={vi.fn()} />);
+  render(<PlanEditor analysis={analysisWithTwoItems} settings={defaultSettings} onChange={vi.fn()} onReplan={onReplan} onConfirm={vi.fn()} />);
 
   await user.click(screen.getByRole("button", { name: "重新规划" }));
   expect(onReplan).toHaveBeenCalledTimes(1);
+});
+
+it("does not confirm an edited plan that removes a fixed-image invariant", () => {
+  const invalid = {
+    ...analysisWithTwoItems,
+    plan: [
+      { ...analysisWithTwoItems.plan[0], prompt: "商品居中展示，使用浅色背景。" },
+      analysisWithLocalizedAnnotations.plan[1],
+    ],
+  };
+
+  render(<PlanEditor analysis={invalid} settings={defaultSettings} onChange={vi.fn()} onReplan={vi.fn()} onConfirm={vi.fn()} />);
+
+  expect(screen.getByRole("button", { name: "确认规划并生成" })).toBeDisabled();
 });

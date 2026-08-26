@@ -7,9 +7,11 @@ import { signJobToken, verifyDownloadToken } from "@/lib/download-token";
 import type { ImageRenderConfig } from "@/lib/image-render-config";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { getImageGenerationResult } from "@/lib/grsai/images";
+import { validateGeneratedImage } from "@/lib/product-image-validation";
 import { GET } from "./route";
 
 vi.mock("@/lib/grsai/images", () => ({ getImageGenerationResult: vi.fn() }));
+vi.mock("@/lib/product-image-validation", () => ({ validateGeneratedImage: vi.fn() }));
 
 const render: ImageRenderConfig = {
   imageIndex: 2,
@@ -26,6 +28,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.GRSAI_API_KEY = "test-key";
   process.env.DOWNLOAD_TOKEN_SECRET = "test-secret";
+  vi.mocked(validateGeneratedImage).mockResolvedValue({ ok: true });
 });
 
 afterEach(() => {
@@ -162,6 +165,42 @@ it("rejects provider success without a result instead of emitting incomplete UI 
 
   expect(response.status).toBe(502);
   expect(await response.json()).toEqual({ error: "图片生成结果尚不可用，请继续查询" });
+});
+
+it("turns a non-white polled image-one result into a retryable failed task", async () => {
+  const imageOneRender: ImageRenderConfig = {
+    imageIndex: 1,
+    annotations: [],
+    watermark: "",
+    applyWatermark: false,
+  };
+  const token = signJobToken("job-1", imageOneRender, "test-secret");
+  vi.mocked(getImageGenerationResult).mockResolvedValue({
+    id: "job-1",
+    status: "succeeded",
+    progress: 100,
+    results: [{ url: "https://cdn.example/non-white.png" }],
+  });
+  vi.mocked(validateGeneratedImage).mockResolvedValue({
+    ok: false,
+    error: "白底商品主图不是纯白背景，请重试此图",
+  });
+
+  const response = await GET(
+    new Request(`http://localhost/api/product/jobs/${token}`),
+    { params: Promise.resolve({ id: token }) },
+  );
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    task: {
+      providerJobId: token,
+      status: "failed",
+      progress: 100,
+      error: "白底商品主图不是纯白背景，请重试此图",
+    },
+  });
+  expect(validateGeneratedImage).toHaveBeenCalledWith("https://cdn.example/non-white.png", 1);
 });
 
 it("returns 503 when either server secret is missing", async () => {

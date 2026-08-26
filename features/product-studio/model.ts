@@ -48,6 +48,7 @@ export const DimensionAnnotationSchema = z.object({
   label: z.string().trim().min(1).max(40),
   displayValue: z.string().trim().min(1).max(40),
 });
+export type DimensionAnnotation = z.infer<typeof DimensionAnnotationSchema>;
 
 const ConfidenceSchema = z.enum(["observed", "inferred", "user_provided"]);
 export const PlanItemSchema = z.object({

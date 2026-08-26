@@ -1,9 +1,14 @@
-import type { DimensionItem, GenerationSettings } from "../model";
+import type { DimensionAnnotation, DimensionItem, GenerationSettings } from "../model";
 
 export type PreparedDimensionFact = {
   id: string;
   sourceLabel: string;
   displayValue: string;
+};
+
+export type ProviderDimensionLabel = {
+  id: string;
+  label: string;
 };
 
 type DimensionLanguage = "zh-CN" | "en" | "ru";
@@ -68,4 +73,21 @@ export function prepareDimensionFacts(items: DimensionItem[], language: Generati
     sourceLabel: item.label,
     displayValue: formatDimensionValue(item, targetLanguage),
   }));
+}
+
+export function bindDimensionAnnotations(
+  labels: ProviderDimensionLabel[],
+  facts: PreparedDimensionFact[],
+): DimensionAnnotation[] {
+  if (labels.length !== facts.length) {
+    throw new Error("尺寸标注数量必须与产品尺寸数量一致");
+  }
+
+  return labels.map((translated, index) => {
+    const fact = facts[index];
+    if (translated.id !== fact.id) {
+      throw new Error("尺寸标注 ID 必须与产品尺寸保持相同顺序");
+    }
+    return { label: translated.label, displayValue: fact.displayValue };
+  });
 }

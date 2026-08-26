@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import type { ImageRenderConfig } from "./image-render-config";
+import { isWhiteBackgroundImage } from "./product-image-validation";
 
 const MAX_INPUT_PIXELS = 4_000_000;
 const MAX_IMAGE_DIMENSION = 4096;
@@ -171,6 +172,9 @@ function watermarkSvg(width: number, height: number, watermark: string) {
 }
 
 export async function renderProductImage(input: Buffer, config: ImageRenderConfig): Promise<Buffer> {
+  if (config.imageIndex === 1 && !await isWhiteBackgroundImage(input)) {
+    throw new Error("白底商品主图不是纯白背景");
+  }
   const inputMetadata = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).metadata();
   if (inputMetadata.format === "svg") throw new Error("不支持 SVG 图片");
 

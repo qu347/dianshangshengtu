@@ -1,21 +1,23 @@
 "use client";
 
-import { PlanItemSchema, type PlanItem, type ProductAnalysis } from "../model";
+import type { GenerationSettings, PlanItem, ProductAnalysis } from "../model";
+import { GenerationPlanSchema } from "../lib/plan-rules";
 
 type PlanEditorProps = {
   analysis: ProductAnalysis;
+  settings: GenerationSettings;
   onChange: (analysis: ProductAnalysis) => void;
   onReplan: () => void;
   onConfirm: () => void;
   disabled?: boolean;
 };
 
-export function PlanEditor({ analysis, onChange, onReplan, onConfirm, disabled = false }: PlanEditorProps) {
+export function PlanEditor({ analysis, settings, onChange, onReplan, onConfirm, disabled = false }: PlanEditorProps) {
   function updateItem(index: number, patch: Partial<PlanItem>) {
     onChange({ ...analysis, plan: analysis.plan.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) });
   }
 
-  const canConfirm = analysis.plan.every((item) => PlanItemSchema.safeParse(item).success);
+  const canConfirm = GenerationPlanSchema(settings).safeParse(analysis.plan).success;
   const labelClass = "block text-xs font-medium text-[#5f646e]";
   const inputClass = "mt-1.5 block h-10 w-full rounded-lg border border-[#d8dbe2] bg-white px-3 text-sm text-[#24272d] focus:border-[#8175e5] disabled:bg-[#f3f4f6]";
 

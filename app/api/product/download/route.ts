@@ -1,17 +1,7 @@
 import { verifyDownloadToken } from "@/lib/download-token";
 import { renderProductImage } from "@/lib/product-image-renderer";
+import { fetchPublicImage } from "@/lib/remote-image";
 
-const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
-const SUPPORTED_IMAGE_CONTENT_TYPES = new Set([
-  "image/avif",
-  "image/gif",
-  "image/heic",
-  "image/heif",
-  "image/jpeg",
-  "image/png",
-  "image/tiff",
-  "image/webp",
-]);
 const RESPONSE_HEADERS = {
   "Cache-Control": "private, no-store",
   "X-Content-Type-Options": "nosniff",
@@ -35,31 +25,6 @@ function errorResponse(error: string, status: number) {
   return Response.json({ error }, { status, headers: RESPONSE_HEADERS });
 }
 
-export async function readImageResponse(response: Response, maxBytes: number): Promise<Buffer> {
-  if (!response.body) throw new Error("图片响应为空");
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalBytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      totalBytes += value.byteLength;
-      if (totalBytes > maxBytes) {
-        await reader.cancel("图片响应过大");
-        throw new Error("图片响应过大");
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes);
-}
-
 export async function GET(request: Request) {
   const tokenSecret = process.env.DOWNLOAD_TOKEN_SECRET;
   if (!tokenSecret) return errorResponse("图片下载服务尚未配置", 503);
@@ -77,20 +42,7 @@ export async function GET(request: Request) {
   const { url: resultUrl, render } = verified;
 
   try {
-    const upstream = await fetch(resultUrl, {
-      redirect: "error",
-      signal: AbortSignal.timeout(30_000),
-    });
-    const contentType = upstream.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
-    if (!upstream.ok || !contentType || !SUPPORTED_IMAGE_CONTENT_TYPES.has(contentType)) {
-      await upstream.body?.cancel();
-      return errorResponse("图片下载失败，请稍后重试", 502);
-    }
-    if (!upstream.body) {
-      return errorResponse("图片下载失败，请稍后重试", 502);
-    }
-
-    const input = await readImageResponse(upstream, MAX_IMAGE_BYTES);
+    const input = await fetchPublicImage(resultUrl);
     const output = await renderProductImage(input, render);
     const disposition = requestUrl.searchParams.get("inline") === "1" ? "inline" : "attachment";
 

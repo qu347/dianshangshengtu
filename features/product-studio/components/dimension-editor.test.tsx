@@ -51,3 +51,33 @@ it("shows a row-specific error when a dimension label exceeds 24 characters", ()
 
   expect(screen.getByText("尺寸名称最多 24 个字符")).toBeInTheDocument();
 });
+
+it("associates every invalid dimension control with its stable row-specific error", () => {
+  render(<DimensionEditor value={[
+    { id: "row-height", label: "", value: 0, unit: "custom", customUnit: "" },
+  ]} imageCount={2} onChange={vi.fn()} />);
+
+  const label = screen.getByLabelText("尺寸名称 1");
+  const value = screen.getByLabelText("尺寸数值 1");
+  const customUnit = screen.getByLabelText("自定义单位 1");
+  expect(label).toHaveAttribute("aria-invalid", "true");
+  expect(label).toHaveAttribute("aria-describedby", "dimension-row-height-label-error");
+  expect(value).toHaveAttribute("aria-invalid", "true");
+  expect(value).toHaveAttribute("aria-describedby", "dimension-row-height-value-error");
+  expect(customUnit).toHaveAttribute("aria-invalid", "true");
+  expect(customUnit).toHaveAttribute("aria-describedby", "dimension-row-height-custom-unit-error");
+  expect(screen.getByText("请填写尺寸名称")).toHaveAttribute("id", "dimension-row-height-label-error");
+  expect(screen.getByText("尺寸数值必须大于 0")).toHaveAttribute("id", "dimension-row-height-value-error");
+  expect(screen.getByText("请填写自定义单位")).toHaveAttribute("id", "dimension-row-height-custom-unit-error");
+});
+
+it("does not expose validation attributes on valid dimension controls", () => {
+  render(<DimensionEditor value={[
+    { id: "row-height", label: "杯高", value: 12, unit: "cm" },
+  ]} imageCount={2} onChange={vi.fn()} />);
+
+  expect(screen.getByLabelText("尺寸名称 1")).toHaveAttribute("aria-invalid", "false");
+  expect(screen.getByLabelText("尺寸名称 1")).not.toHaveAttribute("aria-describedby");
+  expect(screen.getByLabelText("尺寸数值 1")).toHaveAttribute("aria-invalid", "false");
+  expect(screen.getByLabelText("尺寸数值 1")).not.toHaveAttribute("aria-describedby");
+});

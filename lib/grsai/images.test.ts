@@ -6,11 +6,20 @@ beforeEach(() => {
   process.env.GRSAI_API_KEY = "test-key";
 });
 
-it("adds product fidelity and text constraints to the confirmed plan", () => {
-  const prompt = buildGenerationPrompt(makePlanItems(1)[0], { ...defaultSettings, language: "none" });
+it.each([
+  ["zh-CN", "文案语言必须为 中文。"],
+  ["en", "文案语言必须为 英文。"],
+  ["ru", "文案语言必须为 俄文。"],
+  ["none", "画面中不要生成任何文字。"],
+] as const)("uses the centralized %s target-language instruction", (language, instruction) => {
+  const prompt = buildGenerationPrompt(makePlanItems(1)[0], {
+    ...defaultSettings,
+    platform: "general",
+    language,
+  });
 
   expect(prompt).toContain("严格保持参考图中的产品结构、颜色、材质细节和 Logo");
-  expect(prompt).toContain("画面中不要生成任何文字");
+  expect(prompt).toContain(instruction);
 });
 
 it("keeps image 2 free of AI-generated dimension text for the server overlay", () => {

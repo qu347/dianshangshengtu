@@ -1,13 +1,21 @@
 import {
   assertPlanCount,
+  PlanItemSchema,
   ProductAnalysisSchema,
   type DimensionItem,
   type GenerationSettings,
 } from "@/features/product-studio/model";
-import { prepareDimensionFacts, type PreparedDimensionFact } from "@/features/product-studio/lib/dimensions";
+import {
+  bindDimensionAnnotations,
+  dimensionLanguage,
+  prepareDimensionFacts,
+  type PreparedDimensionFact,
+} from "@/features/product-studio/lib/dimensions";
 import { applyPlanRules, assertChinesePlanningFields } from "@/features/product-studio/lib/plan-rules";
+import { targetLanguageDisplayName } from "@/features/product-studio/lib/platform-rules";
 import { GrsaiError } from "./errors";
 import { grsaiFetch } from "./http";
+import { z } from "zod";
 
 type AnalysisInput = {
   images: string[];
@@ -21,8 +29,8 @@ type PromptInput = {
   productName: string;
   requirements: string;
   imageCount: number;
-  platform: string;
-  language: string;
+  platform: GenerationSettings["platform"];
+  language: GenerationSettings["language"];
   dimensions: PreparedDimensionFact[];
 };
 
@@ -37,17 +45,27 @@ const requiredFields = [
   "audience[]",
   "sellingPoints[{title,evidence,confidence}]",
   "visualDirection",
-  "plan[{id,type,title,objective,copy,scene,prompt,annotations[{label,displayValue}]}]",
+  "plan[{id,type,title,objective,copy,scene,prompt,annotations[{id,label}]}]",
 ].join(", ");
+
+const ProviderDimensionLabelSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().trim().min(1).max(40),
+}).strict();
+const ProviderPlanItemSchema = PlanItemSchema.omit({ annotations: true }).extend({
+  annotations: z.array(ProviderDimensionLabelSchema).max(6).default([]),
+}).strict();
+const ProviderProductAnalysisSchema = ProductAnalysisSchema.omit({ plan: true }).extend({
+  plan: z.array(ProviderPlanItemSchema).min(1).max(16),
+}).strict();
 
 function planningRequirements(input: Pick<PromptInput, "imageCount" | "language" | "dimensions">) {
   const copyRule = input.language === "none"
     ? "营销文案 copy 必须为空字符串。"
     : `营销文案 copy 必须使用目标语言 ${input.language}。`;
-  const annotationLanguage = input.language === "en" ? "英文" : input.language === "ru" ? "俄文" : "中文";
+  const annotationLanguage = targetLanguageDisplayName(dimensionLanguage(input.language));
   const dimensionRules = input.dimensions.map((dimension, index) => [
-    `第 ${index + 1} 个标注必须对应尺寸 ${dimension.id}，将标注标签“${dimension.sourceLabel}”翻译为${annotationLanguage}。`,
-    `数值字符串“${dimension.displayValue}”必须原样返回。`,
+    `第 ${index + 1} 个标注必须返回尺寸 ID “${dimension.id}”及标注标签“${dimension.sourceLabel}”的${annotationLanguage}翻译。`,
   ].join(""));
 
   return [
@@ -56,8 +74,8 @@ function planningRequirements(input: Pick<PromptInput, "imageCount" | "language"
     "第 1 项必须是白底商品主图，不得包含营销文案或尺寸标注。",
     ...(input.imageCount >= 2 ? [
       "第 2 项必须是尺寸标注图，商品置于左侧，右侧保留干净的尺寸标注区。",
-      `第 2 项必须按输入顺序返回恰好 ${input.dimensions.length} 个 annotations，每个输入尺寸对应一个翻译后的标注标签。`,
-      "annotations 中的数值字符串不得修改。",
+      `第 2 项必须按输入顺序返回恰好 ${input.dimensions.length} 个 annotations，每项只包含稳定尺寸 ID 和翻译后的 label。`,
+      "AI 不得返回或改写尺寸数值，程序会从可信尺寸事实写入显示值。",
       ...dimensionRules,
     ] : []),
   ].join("\n");
@@ -111,11 +129,25 @@ function parseAnalysisContent(
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
-  const analysis = assertPlanCount(
-    ProductAnalysisSchema.parse(normalizeProviderAnalysis(JSON.parse(unfenced))),
-    expectedCount,
+  const providerAnalysis = ProviderProductAnalysisSchema.parse(
+    normalizeProviderAnalysis(JSON.parse(unfenced)),
   );
-  const plannedAnalysis = applyPlanRules(assertChinesePlanningFields(analysis), dimensionFacts);
+  if (providerAnalysis.plan.length !== expectedCount) {
+    throw new Error(`规划数量应为 ${expectedCount}，实际为 ${providerAnalysis.plan.length}`);
+  }
+  const analysis = ProductAnalysisSchema.parse({
+    ...providerAnalysis,
+    plan: providerAnalysis.plan.map((item, index) => ({
+      ...item,
+      id: String(index + 1),
+      annotations: index === 1
+        ? bindDimensionAnnotations(item.annotations, dimensionFacts)
+        : [],
+    })),
+  });
+  const plannedAnalysis = applyPlanRules(assertChinesePlanningFields(
+    assertPlanCount(analysis, expectedCount),
+  ));
   if (language !== "none") return plannedAnalysis;
   return {
     ...plannedAnalysis,

@@ -287,7 +287,7 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
               ) : state.phase === "reviewing_plan" && state.analysis ? (
                 <>
                   <AnalysisPanel analysis={state.analysis} />
-                  <PlanEditor analysis={state.analysis} disabled={inputsDisabled} onChange={(analysis) => dispatch({ type: "plan_changed", analysis })} onReplan={() => void handleAnalyze()} onConfirm={() => void handleGenerate()} />
+                  <PlanEditor analysis={state.analysis} settings={state.settings} disabled={inputsDisabled} onChange={(analysis) => dispatch({ type: "plan_changed", analysis })} onReplan={() => void handleAnalyze()} onConfirm={() => void handleGenerate()} />
                 </>
               ) : state.analysis && state.tasks.length > 0 ? (
                 <GenerationGrid

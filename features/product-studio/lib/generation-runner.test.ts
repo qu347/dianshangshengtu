@@ -1,5 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { analyzeProductClient, getGenerationStatusClient, submitGenerationClient } from "./client-api";
+import {
+  ProductStudioApiError,
+  analyzeProductClient,
+  getGenerationStatusClient,
+  submitGenerationClient,
+} from "./client-api";
 import { pollGenerationJob, runGenerationBatch } from "./generation-runner";
 import { analysisWithTwoItems, defaultSettings, makeImageFile, makePlanItems } from "../test-fixtures";
 import type { GenerationTask, PlanItem } from "../model";
@@ -213,6 +218,31 @@ it("keeps a submitted provider job resumable when status lookup throws", async (
   expect(changes.at(-1)).toEqual(tasks[0]);
 });
 
+it("turns a permanent polling-token error into a failed task instead of a resumable timeout", async () => {
+  const changes: GenerationTask[] = [];
+  const api = {
+    status: vi.fn().mockRejectedValue(
+      new ProductStudioApiError("任务编号无效", 400),
+    ),
+  };
+
+  const task = await pollGenerationJob({
+    providerJobId: "expired-token",
+    planItemId: "1",
+    api,
+    onTaskChange: (change) => changes.push(change),
+  });
+
+  expect(task).toEqual({
+    planItemId: "1",
+    providerJobId: "expired-token",
+    status: "failed",
+    progress: 0,
+    error: "任务编号无效",
+  });
+  expect(changes).toEqual([task]);
+});
+
 it("does not start replacement work after the batch is aborted", async () => {
   const controller = new AbortController();
   const api = {
@@ -363,4 +393,30 @@ it("generation clients reject malformed task payloads", async () => {
   }), { status: 200, headers: { "Content-Type": "application/json" } })));
 
   await expect(submitGenerationClient({ files: [file], settings, item: onePlanItem })).rejects.toThrow();
+});
+
+it("preserves HTTP status and permanence for an invalid polling token", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    error: "任务编号无效",
+  }), { status: 400, headers: { "Content-Type": "application/json" } })));
+
+  await expect(getGenerationStatusClient("expired-token", "1")).rejects.toMatchObject({
+    name: "ProductStudioApiError",
+    message: "任务编号无效",
+    status: 400,
+    retryable: false,
+  });
+});
+
+it("rejects an untrusted plan item before client submission", async () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(submitGenerationClient({
+    files: [file],
+    settings: { ...defaultSettings, imageCount: 1 },
+    item: { ...onePlanItem, id: "01" },
+  })).rejects.toThrow("规划项无效");
+
+  expect(fetchMock).not.toHaveBeenCalled();
 });

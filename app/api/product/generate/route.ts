@@ -1,9 +1,11 @@
-import { GenerationSettingsSchema, PlanItemSchema } from "@/features/product-studio/model";
+import { GenerationSettingsSchema, type PlanItem } from "@/features/product-studio/model";
+import { GenerationPlanItemSchema } from "@/features/product-studio/lib/plan-rules";
 import { signDownloadUrl, signJobToken } from "@/lib/download-token";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
 import { createImageRenderConfig, inlineResultUrl } from "@/lib/image-render-config";
 import { validateProductImages, validateProductPostRequest } from "@/lib/product-upload";
+import { validateGeneratedImage } from "@/lib/product-image-validation";
 import { ZodError } from "zod";
 
 export async function POST(request: Request) {
@@ -22,10 +24,10 @@ export async function POST(request: Request) {
     const { images } = validatedImages;
 
     let settings: ReturnType<typeof GenerationSettingsSchema.parse>;
-    let item: ReturnType<typeof PlanItemSchema.parse>;
+    let item: PlanItem;
     try {
       settings = GenerationSettingsSchema.parse(JSON.parse(String(form.get("settings"))));
-      item = PlanItemSchema.parse(JSON.parse(String(form.get("item"))));
+      item = GenerationPlanItemSchema(settings).parse(JSON.parse(String(form.get("item"))));
     } catch (error) {
       if (error instanceof SyntaxError || error instanceof ZodError) {
         return Response.json({ error: "生成参数或规划项无效" }, { status: 400 });
@@ -44,6 +46,19 @@ export async function POST(request: Request) {
       quality: settings.quality,
     });
     const result = job.status === "succeeded" ? job.results[0] : undefined;
+    const validation = result
+      ? await validateGeneratedImage(result.url, render.imageIndex)
+      : { ok: true as const };
+    if (!validation.ok) {
+      return Response.json({
+        task: {
+          planItemId: item.id,
+          status: "failed",
+          progress: job.progress,
+          error: validation.error,
+        },
+      });
+    }
     const status = result ? "succeeded" : job.status === "succeeded" ? "running" : job.status;
     const signedResult = result
       ? (() => {

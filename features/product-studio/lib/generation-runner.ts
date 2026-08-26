@@ -1,5 +1,5 @@
 import type { GenerationSettings, GenerationTask, PlanItem } from "../model";
-import type { ProductStudioApi } from "./client-api";
+import { ProductStudioApiError, type ProductStudioApi } from "./client-api";
 
 type GenerationApi = Pick<ProductStudioApi, "submit" | "status">;
 
@@ -29,7 +29,18 @@ export async function pollGenerationJob(input: {
     let task: GenerationTask;
     try {
       task = await input.api.status(input.providerJobId, input.planItemId);
-    } catch {
+    } catch (error) {
+      if (error instanceof ProductStudioApiError && !error.retryable) {
+        const failed: GenerationTask = {
+          planItemId: input.planItemId,
+          providerJobId: input.providerJobId,
+          status: "failed",
+          progress: lastProgress,
+          error: error.message,
+        };
+        input.onTaskChange(failed);
+        return failed;
+      }
       const resumable: GenerationTask = {
         planItemId: input.planItemId,
         providerJobId: input.providerJobId,

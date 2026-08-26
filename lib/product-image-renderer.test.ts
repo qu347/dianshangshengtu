@@ -56,6 +56,11 @@ describe("renderProductImage", () => {
     await expect(renderProductImage(amplified, config())).rejects.toThrow();
   });
 
+  it("refuses to render a non-white image-one result", async () => {
+    await expect(renderProductImage(input, config({ imageIndex: 1 })))
+      .rejects.toThrow("白底商品主图不是纯白背景");
+  });
+
   it("rejects an overlong oriented dimension before composition", async () => {
     const overlong = await sharp({
       create: { width: 4097, height: 1, channels: 3, background: "#eeeeee" },

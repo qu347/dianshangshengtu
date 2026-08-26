@@ -22,8 +22,8 @@ test("completes a two-image product workflow without real API calls", async ({ p
         ...analysisWithTwoItems.plan[1],
         title: "尺寸标注图",
         objective: "展示产品尺寸",
-        scene: "白底尺寸信息版式",
-        prompt: "生成带俄文尺寸标注的商品详情图",
+        scene: "商品位于画面左侧主体区，右侧保留干净的尺寸标注区",
+        prompt: "商品放在左侧约 65% 主体区，右侧约 35% 作为尺寸标注区，不生成尺寸数值。",
         annotations: [{ label: "Высота чашки", displayValue: "12 см" }],
       },
     ],
@@ -39,8 +39,8 @@ test("completes a two-image product workflow without real API calls", async ({ p
   const jobs = new Map<string, { planItemId: string; downloadToken: string }>();
   const polledTokens = new Set<string>();
   const editedPrompts = new Map([
-    ["1", "调整后的白底主图中文提示词"],
-    ["2", "调整后的尺寸标注图中文提示词"],
+    ["1", "调整后的中文提示词：商品完整居中，使用纯白背景。"],
+    ["2", "调整后的中文提示词：商品位于左侧，右侧保留尺寸标注区，不生成尺寸数值。"],
   ]);
 
   await page.route("**/api/product/analyze", (route) => {

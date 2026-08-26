@@ -8,6 +8,17 @@ import {
   type PlanItem,
 } from "../model";
 import { productRequestHeaders } from "@/lib/product-upload";
+import { GenerationPlanItemSchema } from "./plan-rules";
+
+export class ProductStudioApiError extends Error {
+  readonly retryable: boolean;
+
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "ProductStudioApiError";
+    this.retryable = status === 408 || status === 425 || status === 429 || status >= 500;
+  }
+}
 
 export async function analyzeProductClient(input: {
   files: File[];
@@ -48,10 +59,13 @@ export async function submitGenerationClient(input: {
   settings: GenerationSettings;
   item: PlanItem;
 }) {
+  const parsedItem = GenerationPlanItemSchema(input.settings).safeParse(input.item);
+  if (!parsedItem.success) throw new Error("规划项无效，请重新分析");
+
   const form = new FormData();
   input.files.forEach((file) => form.append("images", file));
   form.append("settings", JSON.stringify(input.settings));
-  form.append("item", JSON.stringify(input.item));
+  form.append("item", JSON.stringify(parsedItem.data));
 
   const response = await fetch("/api/product/generate", {
     method: "POST",
@@ -67,7 +81,7 @@ export async function submitGenerationClient(input: {
 export async function getGenerationStatusClient(jobId: string, planItemId: string) {
   const response = await fetch(`/api/product/jobs/${encodeURIComponent(jobId)}`);
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? "查询生图任务失败");
+  if (!response.ok) throw new ProductStudioApiError(body.error ?? "查询生图任务失败", response.status);
 
   return GenerationTaskSchema.parse({ ...body.task, planItemId });
 }

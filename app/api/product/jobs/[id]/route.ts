@@ -2,6 +2,7 @@ import { signDownloadUrl, verifyJobToken } from "@/lib/download-token";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { getImageGenerationResult } from "@/lib/grsai/images";
 import { inlineResultUrl } from "@/lib/image-render-config";
+import { validateGeneratedImage } from "@/lib/product-image-validation";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -28,6 +29,19 @@ export async function GET(request: Request, context: RouteContext) {
     const result = job.status === "succeeded" ? job.results[0] : undefined;
     if (job.status === "succeeded" && !result) {
       throw new GrsaiError("upstream", "图片生成结果尚不可用，请继续查询", 502);
+    }
+    const validation = result
+      ? await validateGeneratedImage(result.url, verified.render.imageIndex)
+      : { ok: true as const };
+    if (!validation.ok) {
+      return Response.json({
+        task: {
+          providerJobId: id,
+          status: "failed",
+          progress: job.progress,
+          error: validation.error,
+        },
+      });
     }
     const signedResult = result
       ? (() => {
