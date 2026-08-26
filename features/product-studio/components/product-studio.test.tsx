@@ -113,6 +113,20 @@ it("shows dimension validation errors without calling analysis", async () => {
   expect(screen.getByText("尺寸数值必须大于 0")).toBeInTheDocument();
 });
 
+it("allows one-image analysis after deleting the final dimension", async () => {
+  const oneItemAnalysis = { ...analysisWithTwoItems, plan: [analysisWithTwoItems.plan[0]] };
+  const analyze = vi.fn().mockResolvedValue(oneItemAnalysis);
+  const user = userEvent.setup();
+  render(<ProductStudio api={{ analyze, ...unusedGenerationApi }} />);
+
+  await user.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
+  await user.selectOptions(screen.getByLabelText("生成数量"), "1");
+  await user.click(screen.getByRole("button", { name: "删除尺寸项 1" }));
+  await user.click(screen.getByRole("button", { name: "开始分析产品" }));
+
+  await waitFor(() => expect(analyze).toHaveBeenCalledWith(expect.objectContaining({ dimensions: [] })));
+});
+
 it("clears the plan and asks for re-analysis when generation count changes", async () => {
   const analyze = vi.fn().mockResolvedValue(analysisWithTwoItems);
   const user = userEvent.setup();

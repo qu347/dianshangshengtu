@@ -29,9 +29,10 @@ it("keeps a row id stable while editing and reveals a custom unit", async () => 
   await user.clear(screen.getByLabelText("尺寸名称 1"));
   await user.type(screen.getByLabelText("尺寸名称 1"), "高度");
   await user.selectOptions(screen.getByLabelText("尺寸单位 1"), "custom");
+  await user.type(screen.getByLabelText("自定义单位 1"), "瓶");
 
-  expect(onChange).toHaveBeenCalledWith([
-    expect.objectContaining({ id: "height", label: "高度" }),
+  expect(onChange).toHaveBeenLastCalledWith([
+    expect.objectContaining({ id: "height", label: "高度", unit: "custom", customUnit: "瓶" }),
   ]);
   expect(screen.getByLabelText("自定义单位 1")).toBeInTheDocument();
 });
@@ -43,4 +44,10 @@ it("shows row-specific validation and caps the editor at six rows", () => {
   expect(screen.getByText("请填写尺寸名称")).toBeInTheDocument();
   expect(screen.getByText("尺寸数值必须大于 0")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "添加尺寸项" })).toBeDisabled();
+});
+
+it("shows a row-specific error when a dimension label exceeds 24 characters", () => {
+  render(<DimensionEditor value={[{ id: "long-label", label: "超".repeat(25), value: 12, unit: "cm" }]} imageCount={2} onChange={vi.fn()} />);
+
+  expect(screen.getByText("尺寸名称最多 24 个字符")).toBeInTheDocument();
 });

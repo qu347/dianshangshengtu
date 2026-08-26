@@ -1,10 +1,10 @@
 import { expect, it } from "vitest";
 import { initialProductStudioState, productStudioReducer } from "./state";
 
-it("invalidates analysis when a key setting changes", () => {
-  const withPlan = { ...initialProductStudioState, phase: "reviewing_plan" as const, analysis: { plan: [{ id: "1" }] } as never };
-  const next = productStudioReducer(withPlan, { type: "settings_changed", patch: { imageCount: 2 } });
-  expect(next.phase).toBe("input"); expect(next.analysis).toBeNull(); expect(next.notice).toBe("关键参数已变化，请重新分析产品");
+it("clears analysis and tasks when the watermark changes", () => {
+  const withPlan = { ...initialProductStudioState, phase: "reviewing_plan" as const, analysis: { plan: [{ id: "1" }] } as never, tasks: [{ planItemId: "1", status: "running" as const, progress: 20 }] };
+  const next = productStudioReducer(withPlan, { type: "settings_changed", patch: { watermark: "My Shop" } });
+  expect(next.settings.watermark).toBe("My Shop"); expect(next.phase).toBe("input"); expect(next.analysis).toBeNull(); expect(next.tasks).toEqual([]); expect(next.notice).toBe("关键参数已变化，请重新分析产品");
 });
 
 it("invalidates analysis when product facts change", () => {
@@ -14,10 +14,10 @@ it("invalidates analysis when product facts change", () => {
 });
 
 it("invalidates analysis when product dimensions change", () => {
-  const withPlan = { ...initialProductStudioState, phase: "reviewing_plan" as const, analysis: { plan: [{ id: "1" }] } as never };
+  const withPlan = { ...initialProductStudioState, phase: "reviewing_plan" as const, analysis: { plan: [{ id: "1" }] } as never, tasks: [{ planItemId: "1", status: "running" as const, progress: 20 }] };
   const dimensions = [{ id: "height", label: "杯高", value: 12, unit: "cm" as const }];
   const next = productStudioReducer(withPlan, { type: "dimensions_changed", dimensions });
-  expect(next.dimensions).toEqual(dimensions); expect(next.phase).toBe("input"); expect(next.analysis).toBeNull(); expect(next.notice).toBe("产品尺寸已变化，请重新分析产品");
+  expect(next.dimensions).toEqual(dimensions); expect(next.phase).toBe("input"); expect(next.analysis).toBeNull(); expect(next.tasks).toEqual([]); expect(next.notice).toBe("产品尺寸已变化，请重新分析产品");
 });
 
 it("updates one task without replacing the remaining tasks", () => {

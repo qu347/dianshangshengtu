@@ -34,6 +34,7 @@ export function DimensionEditor({ value, imageCount, disabled = false, onChange 
       {value.map((item, index) => {
         const rowNumber = index + 1;
         const labelError = !item.label.trim();
+        const labelTooLong = item.label.trim().length > 24;
         const valueError = !Number.isFinite(item.value) || item.value <= 0;
         const customUnitError = item.unit === "custom" && !item.customUnit?.trim();
         return (
@@ -44,9 +45,10 @@ export function DimensionEditor({ value, imageCount, disabled = false, onChange 
             </div>
             <label className="mt-2 block text-xs font-medium text-[#5f646e]">
               名称
-              <input className={inputClass} aria-label={`尺寸名称 ${rowNumber}`} disabled={disabled} value={item.label} onChange={(event) => updateRow(index, { label: event.currentTarget.value })} />
+              <input className={inputClass} aria-label={`尺寸名称 ${rowNumber}`} maxLength={24} disabled={disabled} value={item.label} onChange={(event) => updateRow(index, { label: event.currentTarget.value })} />
             </label>
             {labelError && <p className="mt-1 text-xs text-red-600">请填写尺寸名称</p>}
+            {labelTooLong && <p className="mt-1 text-xs text-red-600">尺寸名称最多 24 个字符</p>}
             <div className="mt-2 grid grid-cols-2 gap-2">
               <label className="block text-xs font-medium text-[#5f646e]">
                 数值
