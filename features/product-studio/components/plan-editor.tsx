@@ -53,9 +53,22 @@ export function PlanEditor({ analysis, onChange, onReplan, onConfirm, disabled =
           <label className={`${labelClass} sm:col-span-2`}>场景
             <input className={inputClass} disabled={disabled} value={item.scene} onChange={(event) => updateItem(index, { scene: event.currentTarget.value })} />
           </label>
-          <label className={`${labelClass} sm:col-span-2`}>第 {index + 1} 张生图提示词
+          <label className={`${labelClass} sm:col-span-2`}>第 {index + 1} 张中文生图提示词
             <textarea className="mt-1.5 block min-h-24 w-full resize-y rounded-lg border border-[#d8dbe2] bg-white px-3 py-2 text-sm leading-6 text-[#24272d] focus:border-[#8175e5] disabled:bg-[#f3f4f6]" disabled={disabled} value={item.prompt} onChange={(event) => updateItem(index, { prompt: event.currentTarget.value })} />
           </label>
+          {index === 1 && item.annotations.length > 0 && (
+            <section className="rounded-lg bg-[#f7f7fb] p-3 sm:col-span-2" aria-labelledby={`plan-item-${item.id}-annotations`}>
+              <h4 id={`plan-item-${item.id}-annotations`} className="text-xs font-semibold text-[#4f535c]">尺寸标注</h4>
+              <ul className="mt-2 space-y-1.5" aria-label="尺寸标注">
+                {item.annotations.map((annotation, annotationIndex) => (
+                  <li key={`${annotation.label}-${annotationIndex}`} className="flex min-w-0 items-baseline justify-between gap-3 text-xs leading-5">
+                    <span className="min-w-0 break-words text-[#6f747e]">{annotation.label}</span>
+                    <span className="shrink-0 font-medium text-[#343840]">{annotation.displayValue}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           </div>
         </article>
       ))}

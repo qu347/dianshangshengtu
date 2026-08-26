@@ -81,6 +81,31 @@ it("uploads a product and shows the analysis", async () => {
   expect(screen.getByText("银色金属杯身")).toBeInTheDocument();
 });
 
+it("shows localized dimension annotations in the editable two-image plan", async () => {
+  const analysis = {
+    ...analysisWithTwoItems,
+    plan: [
+      analysisWithTwoItems.plan[0],
+      {
+        ...analysisWithTwoItems.plan[1],
+        annotations: [{ label: "Высота чашки", displayValue: "12 см" }],
+      },
+    ],
+  };
+  render(<ProductStudio api={{ analyze: vi.fn().mockResolvedValue(analysis), ...unusedGenerationApi }} />);
+
+  await userEvent.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
+  await userEvent.selectOptions(screen.getByLabelText("生成数量"), "2");
+  await fillRequiredDimension();
+  await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
+
+  expect(await screen.findByLabelText("第 1 张中文生图提示词")).toBeEnabled();
+  expect(screen.getByLabelText("第 2 张中文生图提示词")).toBeEnabled();
+  expect(screen.getByText("尺寸标注")).toBeInTheDocument();
+  expect(screen.getByText("Высота чашки")).toBeInTheDocument();
+  expect(screen.getByText("12 см")).toBeInTheDocument();
+});
+
 it("sends product dimensions and watermark to analysis", async () => {
   const analyze = vi.fn().mockResolvedValue(analysisWithTwoItems);
   const user = userEvent.setup();
@@ -135,11 +160,11 @@ it("clears the plan and asks for re-analysis when generation count changes", asy
   await user.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
   await fillRequiredDimension();
   await user.click(screen.getByRole("button", { name: "开始分析产品" }));
-  expect(await screen.findByLabelText("第 1 张生图提示词")).toBeInTheDocument();
+  expect(await screen.findByLabelText("第 1 张中文生图提示词")).toBeInTheDocument();
 
   await user.selectOptions(screen.getByLabelText("生成数量"), "3");
 
-  expect(screen.queryByLabelText("第 1 张生图提示词")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("第 1 张中文生图提示词")).not.toBeInTheDocument();
   expect(screen.getByRole("alert")).toHaveTextContent("关键参数已变化，请重新分析产品");
 });
 
