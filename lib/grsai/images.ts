@@ -31,6 +31,7 @@ export function buildGenerationPrompt(item: PlanItem, settings: GenerationSettin
     `图片类型：${item.type === "main" ? "商品主图" : "商品详情图"}。`,
     `任务目标：${item.objective}。场景：${item.scene}。`,
     item.copy ? `展示文案：${item.copy}。` : "",
+    item.id === "2" ? "第 2 张图片不得生成任何尺寸文字，服务器将在右侧叠加尺寸标注。" : "",
     `用户确认的提示词：${item.prompt}。`,
     settings.language === "none"
       ? "画面中不要生成任何文字。"

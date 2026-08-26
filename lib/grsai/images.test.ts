@@ -13,6 +13,12 @@ it("adds product fidelity and text constraints to the confirmed plan", () => {
   expect(prompt).toContain("画面中不要生成任何文字");
 });
 
+it("keeps image 2 free of AI-generated dimension text for the server overlay", () => {
+  const prompt = buildGenerationPrompt(makePlanItems(2)[1], defaultSettings);
+
+  expect(prompt).toContain("第 2 张图片不得生成任何尺寸文字，服务器将在右侧叠加尺寸标注");
+});
+
 it("submits gpt-image-2 with reference images and JSON reply mode", async () => {
   const fetchImpl = vi.fn().mockResolvedValue(
     new Response(JSON.stringify({ id: "job-1", status: "running" }), { status: 200 }),
@@ -38,6 +44,19 @@ it("submits gpt-image-2 with reference images and JSON reply mode", async () => 
     replyType: "json",
   });
   expect(job).toEqual({ id: "job-1", status: "running", progress: 0, results: [] });
+});
+
+it("passes native 1090x1443 directly to gpt-image-2", async () => {
+  const fetchImpl = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ id: "job-1", status: "running", progress: 0, results: [] }), { status: 200 }),
+  );
+
+  await submitImageGeneration(
+    { images: [], prompt: "中文提示词", aspectRatio: "1090x1443", quality: "auto" },
+    fetchImpl,
+  );
+
+  expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toMatchObject({ aspectRatio: "1090x1443" });
 });
 
 it("allows generation submission up to three minutes", async () => {
