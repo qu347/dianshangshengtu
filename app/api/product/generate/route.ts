@@ -1,11 +1,13 @@
 import { GenerationSettingsSchema, type PlanItem } from "@/features/product-studio/model";
 import { GenerationPlanItemSchema } from "@/features/product-studio/lib/plan-rules";
-import { signDownloadUrl, signJobToken } from "@/lib/download-token";
+import { signDownloadUrl, signJobToken, verifyDownloadToken } from "@/lib/download-token";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
 import { createImageRenderConfig, inlineResultUrl } from "@/lib/image-render-config";
 import { validateProductImages, validateProductPostRequest } from "@/lib/product-upload";
 import { prepareGeneratedImageResult } from "@/lib/product-image-result";
+import { normalizeWhiteBackground } from "@/lib/product-image-validation";
+import { fetchPublicImage } from "@/lib/remote-image";
 import { ZodError } from "zod";
 
 export async function POST(request: Request) {
@@ -36,9 +38,27 @@ export async function POST(request: Request) {
     }
 
     const render = createImageRenderConfig(item, settings);
-    const dataUrls = await Promise.all(images.map(async (file) => (
+    let baseImageDataUrl: string | undefined;
+    if (render.imageIndex === 2) {
+      try {
+        const baseImageToken = form.get("baseImageToken");
+        if (typeof baseImageToken !== "string" || !baseImageToken) throw new Error();
+        const verified = verifyDownloadToken(baseImageToken, tokenSecret);
+        if (verified.render.imageIndex !== 1) throw new Error();
+        const source = await fetchPublicImage(verified.url);
+        const normalized = await normalizeWhiteBackground(source);
+        baseImageDataUrl = `data:image/png;base64,${normalized.toString("base64")}`;
+      } catch {
+        return Response.json({ error: "生成参数或规划项无效" }, { status: 400 });
+      }
+    }
+
+    const uploadedDataUrls = await Promise.all(images.map(async (file) => (
       `data:${file.type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`
     )));
+    const dataUrls = baseImageDataUrl
+      ? [baseImageDataUrl, ...uploadedDataUrls]
+      : uploadedDataUrls;
     const job = await submitImageGeneration({
       images: dataUrls,
       prompt: buildGenerationPrompt(item, settings),

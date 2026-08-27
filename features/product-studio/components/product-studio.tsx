@@ -119,6 +119,13 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
   }
 
   async function handleRetry(item: PlanItem) {
+    const baseImageToken = item.id === "2"
+      ? state.tasks.find((task) => (
+          task.planItemId === "1"
+          && task.status === "succeeded"
+          && task.downloadToken
+        ))?.downloadToken
+      : undefined;
     await runGenerationOperation(async (operationId) => {
       setRetryingItemId(item.id);
       try {
@@ -127,6 +134,7 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
           files: state.files,
           settings: state.settings,
           api,
+          baseImageToken,
           onTaskChange: (task) => {
             if (operationId === generationEpochRef.current) dispatch({ type: "task_changed", task });
           },

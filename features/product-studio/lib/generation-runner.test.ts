@@ -56,6 +56,116 @@ it("never runs more than three provider jobs at once", async () => {
   expect(maximum).toBe(3);
 });
 
+it("waits for image one and passes its signed token only to image two", async () => {
+  const [first, second, third] = makePlanItems(3);
+  let resolveFirst!: (task: GenerationTask) => void;
+  const firstSubmission = new Promise<GenerationTask>((resolve) => { resolveFirst = resolve; });
+  const api = {
+    submit: vi.fn(({ item }: { item: PlanItem; baseImageToken?: string }) => {
+      if (item.id === first.id) return firstSubmission;
+      return Promise.resolve({
+        planItemId: item.id,
+        status: "succeeded" as const,
+        progress: 100,
+        resultUrl: `https://cdn/${item.id}.png`,
+        downloadToken: `token-${item.id}`,
+      });
+    }),
+    status: vi.fn(),
+  };
+
+  const batch = runGenerationBatch({
+    items: [first, second, third],
+    files: [file],
+    settings,
+    api,
+    onTaskChange: vi.fn(),
+  });
+
+  await Promise.resolve();
+  expect(api.submit).toHaveBeenCalledTimes(1);
+  resolveFirst({
+    planItemId: first.id,
+    status: "succeeded",
+    progress: 100,
+    resultUrl: "https://cdn/1.png",
+    downloadToken: "signed-image-one-token",
+  });
+  await batch;
+
+  expect(api.submit).toHaveBeenCalledWith(expect.objectContaining({
+    item: second,
+    baseImageToken: "signed-image-one-token",
+  }));
+  expect(api.submit).toHaveBeenCalledWith(expect.objectContaining({ item: third }));
+  const thirdCall = api.submit.mock.calls.find(([call]) => call.item.id === third.id)?.[0];
+  expect(thirdCall).not.toHaveProperty("baseImageToken");
+});
+
+it("blocks image two when image one fails but still generates later images", async () => {
+  const [first, second, third] = makePlanItems(3);
+  const changes: GenerationTask[] = [];
+  const api = {
+    submit: vi.fn(async ({ item }: { item: PlanItem }) => ({
+      planItemId: item.id,
+      status: item.id === first.id ? "failed" as const : "succeeded" as const,
+      progress: item.id === first.id ? 0 : 100,
+      ...(item.id === first.id
+        ? { error: "白底生成失败" }
+        : { resultUrl: `https://cdn/${item.id}.png`, downloadToken: `token-${item.id}` }),
+    })),
+    status: vi.fn(),
+  };
+
+  const tasks = await runGenerationBatch({
+    items: [first, second, third],
+    files: [file],
+    settings,
+    api,
+    onTaskChange: (task) => changes.push(task),
+  });
+
+  expect(api.submit.mock.calls.map(([call]) => call.item.id)).toEqual([first.id, third.id]);
+  expect(changes).toContainEqual({
+    planItemId: second.id,
+    status: "failed",
+    progress: 0,
+    error: "请先生成或重试白底商品主图",
+  });
+  expect(tasks).toEqual(expect.arrayContaining([
+    expect.objectContaining({ planItemId: second.id, status: "failed" }),
+    expect.objectContaining({ planItemId: third.id, status: "succeeded" }),
+  ]));
+});
+
+it("uses the existing image-one token when retrying image two alone", async () => {
+  const second = makePlanItems(2)[1];
+  const api = {
+    submit: vi.fn(async ({ item }: { item: PlanItem }) => ({
+      planItemId: item.id,
+      status: "succeeded" as const,
+      progress: 100,
+      resultUrl: "https://cdn/2.png",
+      downloadToken: "token-2",
+    })),
+    status: vi.fn(),
+  };
+
+  await runGenerationBatch({
+    items: [second],
+    files: [file],
+    settings,
+    api,
+    baseImageToken: "existing-image-one-token",
+    onTaskChange: vi.fn(),
+  });
+
+  expect(api.submit).toHaveBeenCalledWith(expect.objectContaining({
+    item: second,
+    baseImageToken: "existing-image-one-token",
+  }));
+});
+
 it("does not query status when submission returns a signed successful result", async () => {
   const api = {
     submit: vi.fn().mockResolvedValue({
@@ -243,7 +353,7 @@ it("turns a permanent polling-token error into a failed task instead of a resuma
   expect(changes).toEqual([task]);
 });
 
-it("does not start replacement work after the batch is aborted", async () => {
+it("does not start dependent or replacement work after image one is aborted", async () => {
   const controller = new AbortController();
   const api = {
     submit: vi.fn(async ({ item }: { item: PlanItem }) => ({
@@ -268,7 +378,7 @@ it("does not start replacement work after the batch is aborted", async () => {
     sleep: vi.fn(),
   });
 
-  expect(api.submit).toHaveBeenCalledTimes(3);
+  expect(api.submit).toHaveBeenCalledTimes(1);
 });
 
 it("does not poll again when aborted during a polling delay", async () => {
@@ -353,12 +463,19 @@ it("generation clients validate task payloads and attach the caller-owned plan i
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
   vi.stubGlobal("fetch", fetchMock);
 
-  const submitted = await submitGenerationClient({ files: [file], settings, item: onePlanItem });
+  const submitted = await submitGenerationClient({
+    files: [file],
+    settings,
+    item: onePlanItem,
+    baseImageToken: "signed-image-one-token",
+  });
   const checked = await getGenerationStatusClient(opaqueJobToken, "caller-item");
 
   expect(submitted).toMatchObject({ providerJobId: opaqueJobToken, status: "running" });
   expect(fetchMock.mock.calls[0][0]).toBe("/api/product/generate");
   expect(fetchMock.mock.calls[0][1]?.body).toBeInstanceOf(FormData);
+  expect((fetchMock.mock.calls[0][1]?.body as FormData).get("baseImageToken"))
+    .toBe("signed-image-one-token");
   expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ "X-Product-Studio-Request": "1" });
   expect(fetchMock.mock.calls[1][0]).toBe("/api/product/jobs/signed.job%2Ftoken");
   expect(checked.providerJobId).toBe(opaqueJobToken);

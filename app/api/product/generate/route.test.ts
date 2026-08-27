@@ -2,9 +2,12 @@
 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { analysisWithTwoItems, defaultSettings, makePlanItems } from "@/features/product-studio/test-fixtures";
-import { verifyDownloadToken, verifyJobToken } from "@/lib/download-token";
+import { signDownloadUrl, verifyDownloadToken, verifyJobToken } from "@/lib/download-token";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
+import { createImageRenderConfig } from "@/lib/image-render-config";
+import { normalizeWhiteBackground } from "@/lib/product-image-validation";
 import { prepareGeneratedImageResult } from "@/lib/product-image-result";
+import { fetchPublicImage } from "@/lib/remote-image";
 import { POST } from "./route";
 
 vi.mock("@/lib/grsai/images", () => ({
@@ -12,6 +15,8 @@ vi.mock("@/lib/grsai/images", () => ({
   submitImageGeneration: vi.fn(),
 }));
 vi.mock("@/lib/product-image-result", () => ({ prepareGeneratedImageResult: vi.fn() }));
+vi.mock("@/lib/product-image-validation", () => ({ normalizeWhiteBackground: vi.fn() }));
+vi.mock("@/lib/remote-image", () => ({ fetchPublicImage: vi.fn() }));
 
 const webpSignature = new Uint8Array([
   0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
@@ -24,6 +29,7 @@ function generationForm(options: {
   imageType?: string;
   settings?: unknown;
   item?: unknown;
+  baseImageToken?: string;
 } = {}) {
   const form = new FormData();
   const imageCount = options.imageCount ?? 1;
@@ -36,7 +42,18 @@ function generationForm(options: {
   }
   form.append("settings", JSON.stringify(options.settings ?? defaultSettings));
   form.append("item", JSON.stringify(options.item ?? makePlanItems(1)[0]));
+  if (options.baseImageToken) form.append("baseImageToken", options.baseImageToken);
   return form;
+}
+
+function imageOneToken(nowSeconds?: number, ttlSeconds?: number) {
+  return signDownloadUrl(
+    "https://cdn.example/main.png",
+    createImageRenderConfig(analysisWithTwoItems.plan[0], defaultSettings),
+    "download-secret",
+    nowSeconds,
+    ttlSeconds,
+  );
 }
 
 function generationRequest(form: FormData, headers: HeadersInit = requestHeaders) {
@@ -48,6 +65,8 @@ beforeEach(() => {
   process.env.GRSAI_API_KEY = "test-key";
   process.env.DOWNLOAD_TOKEN_SECRET = "download-secret";
   vi.mocked(prepareGeneratedImageResult).mockImplementation(async ({ render }) => ({ ok: true, render }));
+  vi.mocked(fetchPublicImage).mockResolvedValue(Buffer.from("source image"));
+  vi.mocked(normalizeWhiteBackground).mockResolvedValue(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
 });
 
 afterEach(() => {
@@ -115,6 +134,63 @@ it.each(["01", "not-an-index", "3"])("rejects malformed or out-of-range plan id 
   expect(submitImageGeneration).not.toHaveBeenCalled();
 });
 
+it("requires image two to reference a signed image-one result", async () => {
+  const response = await POST(generationRequest(generationForm({
+    settings: defaultSettings,
+    item: analysisWithTwoItems.plan[1],
+  })));
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: "生成参数或规划项无效" });
+  expect(submitImageGeneration).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["tampered", "not-a-signed-token"],
+  ["expired", imageOneToken(1, 1)],
+  ["wrong image", signDownloadUrl(
+    "https://cdn.example/dimension.png",
+    createImageRenderConfig(analysisWithTwoItems.plan[1], defaultSettings),
+    "download-secret",
+  )],
+])("rejects a %s base image token before calling the provider", async (_label, baseImageToken) => {
+  const response = await POST(generationRequest(generationForm({
+    settings: defaultSettings,
+    item: analysisWithTwoItems.plan[1],
+    baseImageToken,
+  })));
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: "生成参数或规划项无效" });
+  expect(submitImageGeneration).not.toHaveBeenCalled();
+  expect(fetchPublicImage).not.toHaveBeenCalled();
+});
+
+it("prepends the normalized signed image-one result to image-two references", async () => {
+  vi.mocked(submitImageGeneration).mockResolvedValue({
+    id: "job-2",
+    status: "running",
+    progress: 0,
+    results: [],
+  });
+
+  const response = await POST(generationRequest(generationForm({
+    settings: defaultSettings,
+    item: analysisWithTwoItems.plan[1],
+    baseImageToken: imageOneToken(),
+  })));
+
+  expect(response.status).toBe(200);
+  expect(fetchPublicImage).toHaveBeenCalledWith("https://cdn.example/main.png");
+  expect(normalizeWhiteBackground).toHaveBeenCalledWith(Buffer.from("source image"));
+  expect(submitImageGeneration).toHaveBeenCalledWith(expect.objectContaining({
+    images: [
+      "data:image/png;base64,iVBORw==",
+      "data:image/webp;base64,UklGRgAAAABXRUJQ",
+    ],
+  }));
+});
+
 it("returns a signed job token that keeps the render config with a running submission", async () => {
   vi.mocked(submitImageGeneration).mockResolvedValue({
     id: "job-1",
@@ -176,7 +252,11 @@ it("returns an inline same-origin result with the identical signed render config
     },
   }));
 
-  const response = await POST(generationRequest(generationForm({ item, settings })));
+  const response = await POST(generationRequest(generationForm({
+    item,
+    settings,
+    baseImageToken: imageOneToken(),
+  })));
   const body = await response.json();
 
   expect(body).toMatchObject({

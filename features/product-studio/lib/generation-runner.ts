@@ -78,22 +78,29 @@ export async function runGenerationBatch(input: {
   sleep?: (milliseconds: number) => Promise<void>;
   now?: () => number;
   timeoutMs?: number;
+  baseImageToken?: string;
 }): Promise<GenerationTask[]> {
   const results: GenerationTask[] = [];
+  const itemOrder = new Map(input.items.map((item, index) => [item.id, index]));
   let nextIndex = 0;
 
-  async function runOne(item: PlanItem) {
+  async function runOne(item: PlanItem, baseImageToken?: string) {
     let providerJobId: string | undefined;
     input.onTaskChange({ planItemId: item.id, status: "submitting", progress: 0 });
 
     try {
-      const submitted = await input.api.submit({ files: input.files, settings: input.settings, item });
-      if (input.signal?.aborted) return;
+      const submitted = await input.api.submit({
+        files: input.files,
+        settings: input.settings,
+        item,
+        ...(baseImageToken ? { baseImageToken } : {}),
+      });
+      if (input.signal?.aborted) return undefined;
       providerJobId = submitted.providerJobId;
       input.onTaskChange(submitted);
       if (submitted.status !== "running") {
         results.push(submitted);
-        return;
+        return submitted;
       }
       if (!providerJobId) throw new Error("生图服务未返回任务 ID");
 
@@ -108,8 +115,9 @@ export async function runGenerationBatch(input: {
         timeoutMs: input.timeoutMs,
       });
       results.push(result);
+      return result;
     } catch (error) {
-      if (input.signal?.aborted) return;
+      if (input.signal?.aborted) return undefined;
       const failed: GenerationTask = {
         planItemId: item.id,
         ...(providerJobId ? { providerJobId } : {}),
@@ -119,17 +127,47 @@ export async function runGenerationBatch(input: {
       };
       input.onTaskChange(failed);
       results.push(failed);
+      return failed;
     }
+  }
+
+  function blockDependentImage(item: PlanItem) {
+    const failed: GenerationTask = {
+      planItemId: item.id,
+      status: "failed",
+      progress: 0,
+      error: "请先生成或重试白底商品主图",
+    };
+    input.onTaskChange(failed);
+    results.push(failed);
+  }
+
+  const imageOne = input.items.find((item) => item.id === "1");
+  let baseImageToken = input.baseImageToken;
+  let remainingItems = input.items;
+  if (imageOne) {
+    const imageOneResult = await runOne(imageOne);
+    baseImageToken = imageOneResult?.status === "succeeded"
+      ? imageOneResult.downloadToken
+      : undefined;
+    remainingItems = input.items.filter((item) => item !== imageOne);
   }
 
   async function worker() {
-    while (nextIndex < input.items.length && !input.signal?.aborted) {
-      const item = input.items[nextIndex++];
-      await runOne(item);
+    while (nextIndex < remainingItems.length && !input.signal?.aborted) {
+      const item = remainingItems[nextIndex++];
+      if (item.id === "2" && !baseImageToken) {
+        blockDependentImage(item);
+        continue;
+      }
+      await runOne(item, item.id === "2" ? baseImageToken : undefined);
     }
   }
 
-  const workerCount = Math.min(3, input.items.length);
+  const workerCount = Math.min(3, remainingItems.length);
   await Promise.all(Array.from({ length: workerCount }, worker));
-  return results;
+  return results.sort((left, right) => (
+    (itemOrder.get(left.planItemId) ?? Number.MAX_SAFE_INTEGER)
+    - (itemOrder.get(right.planItemId) ?? Number.MAX_SAFE_INTEGER)
+  ));
 }

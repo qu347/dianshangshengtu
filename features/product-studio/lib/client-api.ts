@@ -50,7 +50,12 @@ export type ProductStudioAnalysisApi = {
 };
 
 export type ProductStudioApi = ProductStudioAnalysisApi & {
-  submit: (input: { files: File[]; settings: GenerationSettings; item: PlanItem }) => Promise<GenerationTask>;
+  submit: (input: {
+    files: File[];
+    settings: GenerationSettings;
+    item: PlanItem;
+    baseImageToken?: string;
+  }) => Promise<GenerationTask>;
   status: (jobId: string, planItemId: string) => Promise<GenerationTask>;
 };
 
@@ -58,6 +63,7 @@ export async function submitGenerationClient(input: {
   files: File[];
   settings: GenerationSettings;
   item: PlanItem;
+  baseImageToken?: string;
 }) {
   const parsedItem = GenerationPlanItemSchema(input.settings).safeParse(input.item);
   if (!parsedItem.success) throw new Error("规划项无效，请重新分析");
@@ -66,6 +72,7 @@ export async function submitGenerationClient(input: {
   input.files.forEach((file) => form.append("images", file));
   form.append("settings", JSON.stringify(input.settings));
   form.append("item", JSON.stringify(parsedItem.data));
+  if (input.baseImageToken) form.append("baseImageToken", input.baseImageToken);
 
   const response = await fetch("/api/product/generate", {
     method: "POST",

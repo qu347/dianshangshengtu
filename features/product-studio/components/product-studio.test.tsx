@@ -187,6 +187,14 @@ it("keeps successful images and retries only the failed plan item", async () => 
   expect(await screen.findAllByRole("img", { name: /生成结果/ })).toHaveLength(2);
   expect(screen.getByRole("button", { name: "下载全部" })).toBeEnabled();
   expect(submit).toHaveBeenCalledTimes(3);
+  expect(submit).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    item: analysisWithTwoItems.plan[1],
+    baseImageToken: "token-job-1",
+  }));
+  expect(submit).toHaveBeenNthCalledWith(3, expect.objectContaining({
+    item: analysisWithTwoItems.plan[1],
+    baseImageToken: "token-job-1",
+  }));
 });
 
 it("continues a timed-out job without submitting it again", async () => {
@@ -265,7 +273,7 @@ it("uses one page-wide generation lock for rapid retries", async () => {
     };
   });
   const status = vi.fn(async (jobId: string, planItemId: string) => (
-    jobId === "job-1" || jobId === "job-2"
+    jobId === "job-2"
       ? { planItemId, providerJobId: jobId, status: "failed" as const, progress: 0, error: "上游生成失败" }
       : { planItemId, providerJobId: jobId, status: "succeeded" as const, progress: 100, resultUrl: `https://cdn.example/${jobId}.png`, downloadToken: `token-${jobId}` }
   ));
@@ -276,20 +284,19 @@ it("uses one page-wide generation lock for rapid retries", async () => {
   await fillRequiredDimension();
   await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
   await userEvent.click(await screen.findByRole("button", { name: "确认规划并生成" }));
-  const retryButtons = await screen.findAllByRole("button", { name: "重试此图" });
+  const retryButton = await screen.findByRole("button", { name: "重试此图" });
 
-  fireEvent.click(retryButtons[0]);
+  fireEvent.click(retryButton);
+  fireEvent.click(retryButton);
   expect(await screen.findByText("正在重新提交…")).toBeInTheDocument();
-  expect(screen.getByText("当前批次生成中，完成后可重试")).toBeInTheDocument();
-  fireEvent.click(retryButtons[1]);
 
   expect(submit).toHaveBeenCalledTimes(3);
-  expect(screen.getByRole("button", { name: "重试此图" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "重试此图" })).not.toBeInTheDocument();
 
   await act(async () => {
-    resolveRetry({ planItemId: "1", providerJobId: "job-3", status: "running", progress: 0 });
+    resolveRetry({ planItemId: "2", providerJobId: "job-3", status: "running", progress: 0 });
   });
-  await waitFor(() => expect(status).toHaveBeenCalledWith("job-3", "1"));
+  await waitFor(() => expect(status).toHaveBeenCalledWith("job-3", "2"));
   expect(submit).toHaveBeenCalledTimes(3);
 });
 
