@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import type { ImageRenderConfig } from "./image-render-config";
+import { fallbackDimensionLayout, type SmartDimensionLayout } from "./dimension-layout";
 import { normalizeWhiteBackground } from "./product-image-validation";
 
 const MAX_INPUT_PIXELS = 4_000_000;
@@ -106,45 +107,86 @@ function annotationSvg(
   width: number,
   height: number,
   annotations: ImageRenderConfig["annotations"],
+  suppliedLayout?: SmartDimensionLayout,
 ) {
   if (annotations.length === 0) return "";
 
-  const areaWidth = Math.round(width * 0.35);
-  const areaStart = width - areaWidth;
-  const padding = Math.max(16, Math.round(width * 0.025));
-  const preferredLabelSize = Math.max(16, Math.round(width * 0.022));
-  const preferredValueSize = Math.max(18, Math.round(width * 0.028));
-  const lineStart = Math.round(width * 0.55);
-  const lineEnd = areaStart + padding;
-  const textStart = lineEnd + padding;
-  const textMaxWidth = width - textStart - padding;
-  const slotHeight = height / (annotations.length + 1);
+  const layout = suppliedLayout ?? fallbackDimensionLayout(annotations);
+  const safeX = Math.round(width * 0.08);
+  const safeY = Math.round(height * 0.08);
+  const clamp = (value: number, minimum: number, maximum: number) => (
+    Math.min(maximum, Math.max(minimum, value))
+  );
+  const left = clamp(Math.round(layout.bounds.left / 1000 * width), safeX, width - safeX * 2);
+  const right = clamp(Math.round(layout.bounds.right / 1000 * width), left + 40, width - safeX);
+  const top = clamp(Math.round(layout.bounds.top / 1000 * height), safeY, height - safeY * 2);
+  const bottom = clamp(Math.round(layout.bounds.bottom / 1000 * height), top + 40, height - safeY);
+  const preferredFontSize = Math.max(16, Math.round(width * 0.021));
+  const minimumFontSize = 12;
+  const tick = Math.max(14, Math.round(width * 0.016));
+  const baseOffset = Math.max(42, Math.round(width * 0.045));
+  const offsetStep = Math.max(30, Math.round(width * 0.032));
+  const sideCounts: Record<string, number> = {};
+  const byId = new Map(annotations.map((annotation) => [annotation.id, annotation]));
 
-  const labels = annotations.map((annotation, index) => {
-    const centerY = Math.round(slotHeight * (index + 1));
-    const label = fitText(annotation.label, preferredLabelSize, 12, textMaxWidth);
-    const value = fitText(annotation.displayValue, preferredValueSize, 12, textMaxWidth);
-    const gap = Math.max(4, Math.round(label.fontSize * 0.25));
-    const totalHeight = label.lineHeight * label.lines.length
-      + gap
-      + value.lineHeight * value.lines.length;
-    const blockTop = centerY - totalHeight / 2;
-    const labelY = Math.round(blockTop + label.fontSize);
-    const valueY = Math.round(
-      blockTop + label.lineHeight * label.lines.length + gap + value.fontSize,
-    );
-    return `
-      <line x1="${lineStart}" y1="${centerY}" x2="${lineEnd}" y2="${centerY}"
-        stroke="#27313f" stroke-width="2" opacity="0.72" />
-      <circle cx="${lineStart}" cy="${centerY}" r="4" fill="#27313f" opacity="0.8" />
-      ${textLinesSvg(textStart, labelY, label, 'fill="#27313f"')}
-      ${textLinesSvg(textStart, valueY, value, 'font-weight="700" fill="#111827"')}`;
+  const labelText = (annotation: ImageRenderConfig["annotations"][number]) => (
+    `${annotation.label}  ${annotation.displayValue}`
+  );
+  const placementSvg = layout.placements.flatMap((placement) => {
+    const annotation = byId.get(placement.id);
+    if (!annotation) return [];
+    const slot = sideCounts[placement.side] ?? 0;
+    sideCounts[placement.side] = slot + 1;
+    const offset = baseOffset + slot * offsetStep;
+    const text = labelText(annotation);
+
+    if (placement.axis === "horizontal") {
+      const above = placement.side !== "bottom";
+      const y = above
+        ? clamp(top - offset, safeY, top - 12)
+        : clamp(bottom + offset, bottom + 12, height - safeY);
+      const textLayout = fitText(text, preferredFontSize, minimumFontSize, right - left, 2);
+      const textY = above
+        ? y - Math.max(10, Math.round(preferredFontSize * 0.45))
+        : y + textLayout.fontSize + Math.max(10, Math.round(preferredFontSize * 0.35));
+      return [`
+        <line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="#111111" stroke-width="3" />
+        <line x1="${left}" y1="${y - tick}" x2="${left}" y2="${y + tick}" stroke="#111111" stroke-width="3" />
+        <line x1="${right}" y1="${y - tick}" x2="${right}" y2="${y + tick}" stroke="#111111" stroke-width="3" />
+        ${textLinesSvg(Math.round((left + right) / 2), textY, textLayout, 'text-anchor="middle" font-weight="700" fill="#111111"')}`];
+    }
+
+    if (placement.axis === "vertical") {
+      const onLeft = placement.side === "left";
+      const x = onLeft
+        ? clamp(left - offset, safeX, left - 12)
+        : clamp(right + offset, right + 12, width - safeX);
+      const available = onLeft ? x - safeX : width - safeX - x;
+      const textLayout = fitText(text, preferredFontSize, minimumFontSize, Math.max(80, available), 3);
+      const textX = onLeft ? x - tick - 8 : x + tick + 8;
+      const textY = Math.round((top + bottom) / 2 - textLayout.lineHeight * (textLayout.lines.length - 1) / 2);
+      return [`
+        <line x1="${x}" y1="${top}" x2="${x}" y2="${bottom}" stroke="#111111" stroke-width="3" />
+        <line x1="${x - tick}" y1="${top}" x2="${x + tick}" y2="${top}" stroke="#111111" stroke-width="3" />
+        <line x1="${x - tick}" y1="${bottom}" x2="${x + tick}" y2="${bottom}" stroke="#111111" stroke-width="3" />
+        ${textLinesSvg(textX, textY, textLayout, `${onLeft ? 'text-anchor="end"' : ''} font-weight="700" fill="#111111"`)}`];
+    }
+
+    const onLeft = placement.side === "left";
+    const startX = onLeft ? left : right;
+    const startY = clamp(Math.round((top + bottom) / 2 + slot * offsetStep), top, bottom);
+    const elbowX = onLeft ? startX - offset : startX + offset;
+    const endX = onLeft ? safeX : width - safeX;
+    const textMaxWidth = Math.max(100, Math.abs(endX - elbowX) - 12);
+    const textLayout = fitText(text, preferredFontSize, minimumFontSize, textMaxWidth, 3);
+    return [`
+      <polyline points="${startX},${startY} ${elbowX},${startY} ${endX},${startY}"
+        fill="none" stroke="#111111" stroke-width="3" />
+      <circle cx="${startX}" cy="${startY}" r="4" fill="#111111" />
+      ${textLinesSvg(onLeft ? endX : elbowX + 8, startY - 10, textLayout, `${onLeft ? 'text-anchor="start"' : ''} font-weight="700" fill="#111111"`)}`];
   }).join("");
 
-  return `
-    <rect x="${areaStart}" y="0" width="${areaWidth}" height="${height}"
-      fill="#ffffff" opacity="0.78" />
-    ${labels}`;
+  return placementSvg;
 }
 
 function watermarkSvg(width: number, height: number, watermark: string) {
@@ -201,7 +243,7 @@ export async function renderProductImage(input: Buffer, config: ImageRenderConfi
 
   const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg"
     width="${info.width}" height="${info.height}" viewBox="0 0 ${info.width} ${info.height}">
-    ${annotationSvg(info.width, info.height, annotations)}
+    ${annotationSvg(info.width, info.height, annotations, config.dimensionLayout)}
     ${watermarkSvg(info.width, info.height, watermark)}
   </svg>`);
 

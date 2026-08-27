@@ -2,7 +2,7 @@ import { signDownloadUrl, verifyJobToken } from "@/lib/download-token";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { getImageGenerationResult } from "@/lib/grsai/images";
 import { inlineResultUrl } from "@/lib/image-render-config";
-import { validateGeneratedImage } from "@/lib/product-image-validation";
+import { prepareGeneratedImageResult } from "@/lib/product-image-result";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -30,22 +30,22 @@ export async function GET(request: Request, context: RouteContext) {
     if (job.status === "succeeded" && !result) {
       throw new GrsaiError("upstream", "图片生成结果尚不可用，请继续查询", 502);
     }
-    const validation = result
-      ? await validateGeneratedImage(result.url, verified.render.imageIndex)
-      : { ok: true as const };
-    if (!validation.ok) {
+    const prepared = result
+      ? await prepareGeneratedImageResult({ url: result.url, render: verified.render })
+      : { ok: true as const, render: verified.render };
+    if (!prepared.ok) {
       return Response.json({
         task: {
           providerJobId: id,
           status: "failed",
           progress: job.progress,
-          error: validation.error,
+          error: prepared.error,
         },
       });
     }
     const signedResult = result
       ? (() => {
-          const downloadToken = signDownloadUrl(result.url, verified.render, tokenSecret);
+          const downloadToken = signDownloadUrl(result.url, prepared.render, tokenSecret);
           return {
             resultUrl: inlineResultUrl(request.url, downloadToken),
             downloadToken,

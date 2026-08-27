@@ -4,14 +4,14 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { analysisWithTwoItems, defaultSettings, makePlanItems } from "@/features/product-studio/test-fixtures";
 import { verifyDownloadToken, verifyJobToken } from "@/lib/download-token";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
-import { validateGeneratedImage } from "@/lib/product-image-validation";
+import { prepareGeneratedImageResult } from "@/lib/product-image-result";
 import { POST } from "./route";
 
 vi.mock("@/lib/grsai/images", () => ({
   buildGenerationPrompt: vi.fn(() => "final prompt"),
   submitImageGeneration: vi.fn(),
 }));
-vi.mock("@/lib/product-image-validation", () => ({ validateGeneratedImage: vi.fn() }));
+vi.mock("@/lib/product-image-result", () => ({ prepareGeneratedImageResult: vi.fn() }));
 
 const webpSignature = new Uint8Array([
   0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
@@ -47,7 +47,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.GRSAI_API_KEY = "test-key";
   process.env.DOWNLOAD_TOKEN_SECRET = "download-secret";
-  vi.mocked(validateGeneratedImage).mockResolvedValue({ ok: true });
+  vi.mocked(prepareGeneratedImageResult).mockImplementation(async ({ render }) => ({ ok: true, render }));
 });
 
 afterEach(() => {
@@ -165,6 +165,16 @@ it("returns an inline same-origin result with the identical signed render config
     progress: 100,
     results: [{ url: "https://cdn.example/result.png" }],
   });
+  vi.mocked(prepareGeneratedImageResult).mockImplementationOnce(async ({ render }) => ({
+    ok: true,
+    render: {
+      ...render,
+      dimensionLayout: {
+        bounds: { left: 260, top: 220, right: 740, bottom: 820 },
+        placements: [{ id: "height", axis: "vertical", side: "right" }],
+      },
+    },
+  }));
 
   const response = await POST(generationRequest(generationForm({ item, settings })));
   const body = await response.json();
@@ -189,8 +199,8 @@ it("returns an inline same-origin result with the identical signed render config
         imageIndex: 2,
         annotations: [{ id: "height", label: "杯高", displayValue: "12 cm" }],
         dimensionLayout: {
-          bounds: { left: 220, top: 250, right: 780, bottom: 780 },
-          placements: [{ id: "height", axis: "horizontal", side: "top" }],
+          bounds: { left: 260, top: 220, right: 740, bottom: 820 },
+          placements: [{ id: "height", axis: "vertical", side: "right" }],
         },
         watermark: "Brand",
         applyWatermark: true,
@@ -231,9 +241,9 @@ it("returns a non-white image-one result as a retryable failed task without sign
     progress: 100,
     results: [{ url: "https://cdn.example/non-white.png" }],
   });
-  vi.mocked(validateGeneratedImage).mockResolvedValue({
+  vi.mocked(prepareGeneratedImageResult).mockResolvedValue({
     ok: false,
-    error: "白底商品主图不是纯白背景，请重试此图",
+    error: "白底商品主图背景处理失败，请重试此图",
   });
 
   const response = await POST(generationRequest(generationForm({
@@ -247,10 +257,13 @@ it("returns a non-white image-one result as a retryable failed task without sign
     planItemId: "1",
     status: "failed",
     progress: 100,
-    error: "白底商品主图不是纯白背景，请重试此图",
+    error: "白底商品主图背景处理失败，请重试此图",
   });
   expect(body.task).not.toHaveProperty("downloadToken");
-  expect(validateGeneratedImage).toHaveBeenCalledWith("https://cdn.example/non-white.png", 1);
+  expect(prepareGeneratedImageResult).toHaveBeenCalledWith(expect.objectContaining({
+    url: "https://cdn.example/non-white.png",
+    render: expect.objectContaining({ imageIndex: 1 }),
+  }));
 });
 
 it("returns 503 without calling the provider when the API key is absent", async () => {

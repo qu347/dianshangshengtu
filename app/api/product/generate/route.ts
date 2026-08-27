@@ -5,7 +5,7 @@ import { GrsaiError } from "@/lib/grsai/errors";
 import { buildGenerationPrompt, submitImageGeneration } from "@/lib/grsai/images";
 import { createImageRenderConfig, inlineResultUrl } from "@/lib/image-render-config";
 import { validateProductImages, validateProductPostRequest } from "@/lib/product-upload";
-import { validateGeneratedImage } from "@/lib/product-image-validation";
+import { prepareGeneratedImageResult } from "@/lib/product-image-result";
 import { ZodError } from "zod";
 
 export async function POST(request: Request) {
@@ -46,23 +46,23 @@ export async function POST(request: Request) {
       quality: settings.quality,
     });
     const result = job.status === "succeeded" ? job.results[0] : undefined;
-    const validation = result
-      ? await validateGeneratedImage(result.url, render.imageIndex)
-      : { ok: true as const };
-    if (!validation.ok) {
+    const prepared = result
+      ? await prepareGeneratedImageResult({ url: result.url, render })
+      : { ok: true as const, render };
+    if (!prepared.ok) {
       return Response.json({
         task: {
           planItemId: item.id,
           status: "failed",
           progress: job.progress,
-          error: validation.error,
+          error: prepared.error,
         },
       });
     }
     const status = result ? "succeeded" : job.status === "succeeded" ? "running" : job.status;
     const signedResult = result
       ? (() => {
-          const downloadToken = signDownloadUrl(result.url, render, tokenSecret);
+          const downloadToken = signDownloadUrl(result.url, prepared.render, tokenSecret);
           return {
             resultUrl: inlineResultUrl(request.url, downloadToken),
             downloadToken,

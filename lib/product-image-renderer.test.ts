@@ -41,6 +41,14 @@ function minimumChannelValue(pixels: Buffer) {
   return minimum;
 }
 
+function darkPixelCount(pixels: Buffer) {
+  let count = 0;
+  for (let offset = 0; offset < pixels.length; offset += 3) {
+    if (pixels[offset] < 40 && pixels[offset + 1] < 40 && pixels[offset + 2] < 40) count += 1;
+  }
+  return count;
+}
+
 describe("renderProductImage", () => {
   it("normalizes the native 3:4 image to PNG without changing its dimensions", async () => {
     const output = await renderProductImage(input, config());
@@ -101,6 +109,40 @@ describe("renderProductImage", () => {
 
     expect(output.equals(input)).toBe(false);
     expect(await sharp(output).metadata()).toMatchObject({ width, height, format: "png" });
+  });
+
+  it("draws black top and right brackets without a different-color side panel", async () => {
+    const source = await sharp({
+      create: { width, height, channels: 3, background: "#eeeeee" },
+    }).composite([{
+      input: await sharp({
+        create: { width: 490, height: 600, channels: 3, background: "#777777" },
+      }).png().toBuffer(),
+      left: 300,
+      top: 400,
+    }]).png().toBuffer();
+    const output = await renderProductImage(source, config({
+      annotations: [
+        { id: "width", label: "宽", displayValue: "9 cm" },
+        { id: "height", label: "高", displayValue: "5 cm" },
+      ],
+      dimensionLayout: {
+        bounds: { left: 275, top: 277, right: 725, bottom: 693 },
+        placements: [
+          { id: "width", axis: "horizontal", side: "top" },
+          { id: "height", axis: "vertical", side: "right" },
+        ],
+      },
+    }));
+
+    expect(Array.from(await rawRegion(output, { left: 10, top: 10, width: 1, height: 1 })))
+      .toEqual([255, 255, 255]);
+    expect(Array.from(await rawRegion(output, { left: width - 10, top: 700, width: 1, height: 1 })))
+      .toEqual([255, 255, 255]);
+    expect(darkPixelCount(await rawRegion(output, { left: 250, top: 250, width: 620, height: 170 })))
+      .toBeGreaterThan(50);
+    expect(darkPixelCount(await rawRegion(output, { left: 780, top: 360, width: 210, height: 700 })))
+      .toBeGreaterThan(50);
   });
 
   it("composites an enabled watermark into the output", async () => {

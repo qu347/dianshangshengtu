@@ -7,11 +7,11 @@ import { signJobToken, verifyDownloadToken } from "@/lib/download-token";
 import type { ImageRenderConfig } from "@/lib/image-render-config";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { getImageGenerationResult } from "@/lib/grsai/images";
-import { validateGeneratedImage } from "@/lib/product-image-validation";
+import { prepareGeneratedImageResult } from "@/lib/product-image-result";
 import { GET } from "./route";
 
 vi.mock("@/lib/grsai/images", () => ({ getImageGenerationResult: vi.fn() }));
-vi.mock("@/lib/product-image-validation", () => ({ validateGeneratedImage: vi.fn() }));
+vi.mock("@/lib/product-image-result", () => ({ prepareGeneratedImageResult: vi.fn() }));
 
 const render: ImageRenderConfig = {
   imageIndex: 2,
@@ -32,7 +32,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.GRSAI_API_KEY = "test-key";
   process.env.DOWNLOAD_TOKEN_SECRET = "test-secret";
-  vi.mocked(validateGeneratedImage).mockResolvedValue({ ok: true });
+  vi.mocked(prepareGeneratedImageResult).mockImplementation(async ({ render: nextRender }) => ({ ok: true, render: nextRender }));
 });
 
 afterEach(() => {
@@ -43,6 +43,14 @@ afterEach(() => {
 
 it("queries the raw provider id internally and signs the rendered result", async () => {
   const token = jobToken();
+  const preparedRender: ImageRenderConfig = {
+    ...render,
+    dimensionLayout: {
+      bounds: { left: 260, top: 220, right: 740, bottom: 820 },
+      placements: [{ id: "height", axis: "vertical", side: "right" }],
+    },
+  };
+  vi.mocked(prepareGeneratedImageResult).mockResolvedValueOnce({ ok: true, render: preparedRender });
   vi.mocked(getImageGenerationResult).mockResolvedValue({
     id: "job-1",
     status: "succeeded",
@@ -72,7 +80,7 @@ it("queries the raw provider id internally and signs the rendered result", async
   expect(resultUrl.searchParams.get("token")).toBe(body.task.downloadToken);
   expect(verifyDownloadToken(body.task.downloadToken, "test-secret")).toEqual({
     url: "https://cdn.example/result.png",
-    render,
+    render: preparedRender,
   });
 });
 
@@ -185,9 +193,9 @@ it("turns a non-white polled image-one result into a retryable failed task", asy
     progress: 100,
     results: [{ url: "https://cdn.example/non-white.png" }],
   });
-  vi.mocked(validateGeneratedImage).mockResolvedValue({
+  vi.mocked(prepareGeneratedImageResult).mockResolvedValue({
     ok: false,
-    error: "白底商品主图不是纯白背景，请重试此图",
+    error: "白底商品主图背景处理失败，请重试此图",
   });
 
   const response = await GET(
@@ -201,10 +209,13 @@ it("turns a non-white polled image-one result into a retryable failed task", asy
       providerJobId: token,
       status: "failed",
       progress: 100,
-      error: "白底商品主图不是纯白背景，请重试此图",
+      error: "白底商品主图背景处理失败，请重试此图",
     },
   });
-  expect(validateGeneratedImage).toHaveBeenCalledWith("https://cdn.example/non-white.png", 1);
+  expect(prepareGeneratedImageResult).toHaveBeenCalledWith(expect.objectContaining({
+    url: "https://cdn.example/non-white.png",
+    render: imageOneRender,
+  }));
 });
 
 it("returns 503 when either server secret is missing", async () => {
