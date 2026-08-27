@@ -1,9 +1,11 @@
 import { DimensionAnnotationSchema, type GenerationSettings, type PlanItem } from "@/features/product-studio/model";
 import { shouldApplyWatermark } from "@/features/product-studio/lib/platform-rules";
+import { fallbackDimensionLayout, type SmartDimensionLayout } from "./dimension-layout";
 
 export type ImageRenderConfig = {
   imageIndex: number;
   annotations: PlanItem["annotations"];
+  dimensionLayout?: SmartDimensionLayout;
   watermark: string;
   applyWatermark: boolean;
 };
@@ -27,6 +29,7 @@ export function createImageRenderConfig(item: PlanItem, settings: GenerationSett
   return {
     imageIndex,
     annotations,
+    ...(imageIndex === 2 ? { dimensionLayout: fallbackDimensionLayout(annotations) } : {}),
     watermark,
     applyWatermark: shouldApplyWatermark(settings.platform, imageIndex, watermark),
   };

@@ -23,15 +23,15 @@ const trustedPlan = [
     type: "detail" as const,
     scene: "商品位于画面左侧主体区，右侧保留干净的尺寸标注区",
     prompt: "商品放在左侧约 65% 主体区，右侧约 35% 作为尺寸标注区，不生成尺寸数值。",
-    annotations: [{ label: "杯高", displayValue: "12 cm" }],
+    annotations: [{ id: "height", label: "杯高", displayValue: "12 cm" }],
   },
 ];
 
 it("forces image one to white background and image two to dimensions", () => {
   const analysis = structuredClone(analysisWithTwoItems);
   analysis.plan[1].annotations = [
-    { label: "Height", displayValue: "wrong" },
-    { label: "Capacity", displayValue: "wrong" },
+    { id: "height", label: "Height", displayValue: "wrong" },
+    { id: "capacity", label: "Capacity", displayValue: "wrong" },
   ];
   const originalAnalysis = structuredClone(analysis);
   const originalFirstItem = structuredClone(analysis.plan[0]);
@@ -75,9 +75,9 @@ it("rejects non-Chinese editor planning text", () => {
 
 it("does not rewrite trusted dimension annotations by array position", () => {
   const analysis = structuredClone(analysisWithTwoItems);
-  analysis.plan[1].annotations = [{ label: "Height", displayValue: "wrong" }];
+  analysis.plan[1].annotations = [{ id: "height", label: "Height", displayValue: "wrong" }];
   expect(applyPlanRules(analysis).plan[1].annotations).toEqual([
-    { label: "Height", displayValue: "wrong" },
+    { id: "height", label: "Height", displayValue: "wrong" },
   ]);
 });
 
@@ -97,7 +97,7 @@ it.each([
   ["non-Chinese editor text", (plan: typeof trustedPlan) => [{ ...plan[0], title: "Main image" }, plan[1]]],
   ["a non-main first image", (plan: typeof trustedPlan) => [{ ...plan[0], type: "detail" as const }, plan[1]]],
   ["first-image marketing copy", (plan: typeof trustedPlan) => [{ ...plan[0], copy: "立即购买" }, plan[1]]],
-  ["a first-image annotation", (plan: typeof trustedPlan) => [{ ...plan[0], annotations: [{ label: "杯高", displayValue: "12 cm" }] }, plan[1]]],
+  ["a first-image annotation", (plan: typeof trustedPlan) => [{ ...plan[0], annotations: [{ id: "height", label: "杯高", displayValue: "12 cm" }] }, plan[1]]],
   ["a first image without an explicit white background", (plan: typeof trustedPlan) => [{ ...plan[0], prompt: "商品完整居中，背景简洁。" }, plan[1]]],
   ["a non-detail second image", (plan: typeof trustedPlan) => [plan[0], { ...plan[1], type: "main" as const }]],
   ["a second image without the dimension layout", (plan: typeof trustedPlan) => [plan[0], { ...plan[1], prompt: "展示产品尺寸。" }]],

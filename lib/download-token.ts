@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { ImageRenderConfig } from "./image-render-config";
+import { bindDimensionLayout } from "./dimension-layout";
 
 declare const downloadTokenBrand: unique symbol;
 declare const jobTokenBrand: unique symbol;
@@ -49,6 +50,10 @@ function isBoundedText(value: unknown, allowEmpty = false): value is string {
     && (allowEmpty || value.trim().length > 0);
 }
 
+function isBoundedId(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= 64;
+}
+
 function isImageRenderConfig(value: unknown): value is ImageRenderConfig {
   if (
     !isRecord(value)
@@ -62,9 +67,21 @@ function isImageRenderConfig(value: unknown): value is ImageRenderConfig {
     return false;
   }
 
-  return value.annotations.every((annotation) => isRecord(annotation)
+  const annotationsValid = value.annotations.every((annotation) => isRecord(annotation)
+    && isBoundedId(annotation.id)
     && isBoundedText(annotation.label)
     && isBoundedText(annotation.displayValue));
+  if (!annotationsValid) return false;
+
+  if (value.imageIndex === 2) {
+    try {
+      bindDimensionLayout(value.dimensionLayout, value.annotations as ImageRenderConfig["annotations"]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return value.dimensionLayout === undefined;
 }
 
 function signatureFor(payloadPart: string, secret: string) {

@@ -10,7 +10,11 @@ import {
 
 const render: ImageRenderConfig = {
   imageIndex: 2,
-  annotations: [{ label: "Height", displayValue: "4.72 in" }],
+  annotations: [{ id: "height", label: "Height", displayValue: "4.72 in" }],
+  dimensionLayout: {
+    bounds: { left: 180, top: 220, right: 820, bottom: 820 },
+    placements: [{ id: "height", axis: "vertical", side: "right" }],
+  },
   watermark: "Brand",
   applyWatermark: true,
 };
@@ -154,6 +158,9 @@ describe("render-context tokens", () => {
       { ...render, annotations: [{ label: "Height", displayValue: "" }] },
       { ...render, annotations: [{ label: "Height", displayValue: "x".repeat(41) }] },
       { ...render, annotations: [{ label: "Height", displayValue: 2 }] },
+      { ...render, dimensionLayout: { ...render.dimensionLayout, bounds: { left: -1, top: 220, right: 820, bottom: 820 } } },
+      { ...render, dimensionLayout: { ...render.dimensionLayout, placements: [{ id: "height", axis: "diagonal", side: "right" }] } },
+      { ...render, dimensionLayout: { ...render.dimensionLayout, placements: [{ id: "wrong", axis: "vertical", side: "right" }] } },
       { ...render, watermark: "x".repeat(41) },
       { ...render, watermark: false },
       { ...render, applyWatermark: "yes" },

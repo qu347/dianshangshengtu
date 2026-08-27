@@ -12,8 +12,8 @@ const analysisWithLocalizedAnnotations = {
     {
       ...analysisWithTwoItems.plan[1],
       annotations: [
-        { label: "Высота чашки", displayValue: "12 см" },
-        { label: "Диаметр чашки", displayValue: "8 см" },
+        { id: "height", label: "Высота чашки", displayValue: "12 см" },
+        { id: "diameter", label: "Диаметр чашки", displayValue: "8 см" },
       ],
     },
   ],

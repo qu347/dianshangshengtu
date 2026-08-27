@@ -19,14 +19,18 @@ it("copies validated annotations and trims the watermark", () => {
   const item = {
     ...makePlanItems(2)[1],
     annotations: [
-      { label: " 杯高 ", displayValue: " 12 cm " },
-      { label: "", displayValue: "not rendered" },
+      { id: "height", label: " 杯高 ", displayValue: " 12 cm " },
+      { id: "invalid", label: "", displayValue: "not rendered" },
     ],
   };
 
   expect(createImageRenderConfig(item as never, { ...defaultSettings, watermark: " Brand " })).toEqual({
     imageIndex: 2,
-    annotations: [{ label: "杯高", displayValue: "12 cm" }],
+    annotations: [{ id: "height", label: "杯高", displayValue: "12 cm" }],
+    dimensionLayout: {
+      bounds: { left: 220, top: 250, right: 780, bottom: 780 },
+      placements: [{ id: "height", axis: "horizontal", side: "top" }],
+    },
     watermark: "Brand",
     applyWatermark: true,
   });

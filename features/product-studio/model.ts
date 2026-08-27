@@ -45,6 +45,7 @@ export const DimensionItemsSchema = (imageCount: number) => z.array(DimensionIte
   });
 
 export const DimensionAnnotationSchema = z.object({
+  id: z.string().trim().min(1).max(64),
   label: z.string().trim().min(1).max(40),
   displayValue: z.string().trim().min(1).max(40),
 });

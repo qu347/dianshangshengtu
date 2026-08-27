@@ -156,7 +156,7 @@ it("returns a signed job token that keeps the render config with a running submi
 it("returns an inline same-origin result with the identical signed render config", async () => {
   const item = {
     ...analysisWithTwoItems.plan[1],
-    annotations: [{ label: "杯高", displayValue: "12 cm" }],
+    annotations: [{ id: "height", label: "杯高", displayValue: "12 cm" }],
   };
   const settings = { ...defaultSettings, watermark: "Brand" };
   vi.mocked(submitImageGeneration).mockResolvedValue({
@@ -187,7 +187,11 @@ it("returns an inline same-origin result with the identical signed render config
       url: "https://cdn.example/result.png",
       render: {
         imageIndex: 2,
-        annotations: [{ label: "杯高", displayValue: "12 cm" }],
+        annotations: [{ id: "height", label: "杯高", displayValue: "12 cm" }],
+        dimensionLayout: {
+          bounds: { left: 220, top: 250, right: 780, bottom: 780 },
+          placements: [{ id: "height", axis: "horizontal", side: "top" }],
+        },
         watermark: "Brand",
         applyWatermark: true,
       },

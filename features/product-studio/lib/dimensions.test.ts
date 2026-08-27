@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { dimensionLanguage, prepareDimensionFacts } from "./dimensions";
+import { bindDimensionAnnotations, dimensionLanguage, prepareDimensionFacts } from "./dimensions";
 
 const height = { id: "height", label: "杯高", value: 12, unit: "cm" as const };
 const capacity = { id: "capacity", label: "容量", value: 350, unit: "ml" as const };
@@ -44,4 +44,11 @@ it("preserves result order and source metadata", () => {
 
 it("rejects non-finite conversion output", () => {
   expect(() => prepareDimensionFacts([{ id: "overflow", label: "溢出", value: Number.MAX_VALUE, unit: "m" }], "zh-CN")).toThrow();
+});
+
+it("preserves the trusted dimension id when binding translated labels", () => {
+  expect(bindDimensionAnnotations(
+    [{ id: "height", label: "Высота" }],
+    [{ id: "height", sourceLabel: "高", displayValue: "5 см" }],
+  )).toEqual([{ id: "height", label: "Высота", displayValue: "5 см" }]);
 });

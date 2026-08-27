@@ -15,7 +15,11 @@ const width = 1090;
 const height = 1443;
 const render: ImageRenderConfig = {
   imageIndex: 2,
-  annotations: [{ label: "Height", displayValue: "4.72 in" }],
+  annotations: [{ id: "height", label: "Height", displayValue: "4.72 in" }],
+  dimensionLayout: {
+    bounds: { left: 180, top: 220, right: 820, bottom: 820 },
+    placements: [{ id: "height", axis: "vertical", side: "right" }],
+  },
   watermark: "Brand",
   applyWatermark: true,
 };

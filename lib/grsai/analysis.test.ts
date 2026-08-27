@@ -202,7 +202,7 @@ it("repairs a response with missing message content once", async () => {
 
   const result = await analyzeProduct(validInput, fetchImpl);
 
-  expect(result.plan[1].annotations).toEqual([{ label: "杯高", displayValue: "12 cm" }]);
+  expect(result.plan[1].annotations).toEqual([{ id: "height", label: "杯高", displayValue: "12 cm" }]);
   expect(fetchImpl).toHaveBeenCalledTimes(2);
 });
 
@@ -249,7 +249,7 @@ it("repairs non-Chinese planning once and reapplies trusted plan values", async 
 
   expect(fetchImpl).toHaveBeenCalledTimes(2);
   expect(result.plan[0]).toMatchObject({ type: "main", copy: "", scene: expect.stringContaining("纯白") });
-  expect(result.plan[1].annotations).toEqual([{ label: "杯高", displayValue: "12 cm" }]);
+  expect(result.plan[1].annotations).toEqual([{ id: "height", label: "杯高", displayValue: "12 cm" }]);
 });
 
 it("repairs reordered stable dimension ids and binds labels to program-owned values", async () => {
@@ -282,8 +282,8 @@ it("repairs reordered stable dimension ids and binds labels to program-owned val
 
   expect(fetchImpl).toHaveBeenCalledTimes(2);
   expect(result.plan[1].annotations).toEqual([
-    { label: "Height", displayValue: "12 cm" },
-    { label: "Capacity", displayValue: "350 mL" },
+    { id: "height", label: "Height", displayValue: "12 cm" },
+    { id: "capacity", label: "Capacity", displayValue: "350 mL" },
   ]);
 });
 

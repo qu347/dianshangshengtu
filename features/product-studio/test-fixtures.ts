@@ -16,7 +16,7 @@ export const analysisWithTwoItems: ProductAnalysis = {
       objective: "展示产品尺寸并保留准确比例",
       scene: "商品位于画面左侧主体区，右侧保留干净的尺寸标注区",
       prompt: "商品放置在画面左侧约 65% 的主体区，右侧约 35% 保持干净作为尺寸标注区；不生成尺寸数值。",
-      annotations: [{ label: "杯高", displayValue: "12 cm" }],
+      annotations: [{ id: "height", label: "杯高", displayValue: "12 cm" }],
     },
   ],
 };

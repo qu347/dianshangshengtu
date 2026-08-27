@@ -67,13 +67,13 @@ describe("renderProductImage", () => {
     }).png().toBuffer();
 
     await expect(renderProductImage(overlong, config({
-      annotations: [{ label: "Height", displayValue: "4.72 in" }],
+      annotations: [{ id: "height", label: "Height", displayValue: "4.72 in" }],
     }))).rejects.toThrow("图片尺寸超过限制");
   });
 
   it("composites image-two dimension annotations into the output", async () => {
     const output = await renderProductImage(input, config({
-      annotations: [{ label: "Height", displayValue: "4.72 in" }],
+      annotations: [{ id: "height", label: "Height", displayValue: "4.72 in" }],
     }));
 
     expect(output.equals(input)).toBe(false);
@@ -94,7 +94,7 @@ describe("renderProductImage", () => {
     expect(maxCjkText).toHaveLength(40);
     expect(maxEnglishText).toHaveLength(40);
     const output = await renderProductImage(input, config({
-      annotations: [{ label: maxCjkText, displayValue: maxEnglishText }],
+      annotations: [{ id: "size", label: maxCjkText, displayValue: maxEnglishText }],
     }));
 
     const edge = await rawRegion(output, { left: width - 12, top: 0, width: 12, height });
@@ -129,7 +129,7 @@ describe("renderProductImage", () => {
   it("fits max-length wide uppercase Cyrillic annotations inside the right-side padding", async () => {
     expect(maxWideCyrillicText).toHaveLength(40);
     const output = await renderProductImage(input, config({
-      annotations: [{ label: maxWideCyrillicText, displayValue: maxWideCyrillicText }],
+      annotations: [{ id: "size", label: maxWideCyrillicText, displayValue: maxWideCyrillicText }],
     }));
     const edge = await rawRegion(output, { left: width - 12, top: 0, width: 12, height });
     const annotationArea = await rawRegion(output, {
@@ -165,6 +165,7 @@ describe("renderProductImage", () => {
 
     const output = await renderProductImage(input, config({
       annotations: [{
+        id: "injected",
         label: `${injectedNode}&\"'`,
         displayValue: `${injectedNode}&\"'`,
       }],

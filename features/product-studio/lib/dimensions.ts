@@ -88,6 +88,6 @@ export function bindDimensionAnnotations(
     if (translated.id !== fact.id) {
       throw new Error("尺寸标注 ID 必须与产品尺寸保持相同顺序");
     }
-    return { label: translated.label, displayValue: fact.displayValue };
+    return { id: fact.id, label: translated.label, displayValue: fact.displayValue };
   });
 }
