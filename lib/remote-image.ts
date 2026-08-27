@@ -121,6 +121,30 @@ async function defaultLookup(hostname: string): Promise<ResolvedAddress[]> {
   ));
 }
 
+function waitWithAbort<T>(promise: Promise<T>, signal: AbortSignal) {
+  if (signal.aborted) {
+    return Promise.reject(signal.reason ?? new DOMException("请求已取消", "AbortError"));
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => {
+      signal.removeEventListener("abort", abort);
+      reject(signal.reason ?? new DOMException("请求已取消", "AbortError"));
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", abort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    );
+  });
+}
+
 function responseHeaders(response: IncomingMessage) {
   const headers = new Headers();
   Object.entries(response.headers).forEach(([name, value]) => {
@@ -201,13 +225,16 @@ export async function fetchPublicImage(
   if (url.protocol !== "https:" || url.username || url.password) {
     throw new Error("仅允许 HTTPS 图片地址");
   }
+  const timeoutSignal = AbortSignal.timeout(30_000);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeoutSignal])
+    : timeoutSignal;
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
-  const addresses = await (options.lookup ?? defaultLookup)(hostname);
+  const addresses = await waitWithAbort((options.lookup ?? defaultLookup)(hostname), signal);
   if (addresses.length === 0 || addresses.some((address) => !isPublicAddress(address))) {
     throw new Error("图片地址必须解析到公开网络地址");
   }
 
-  const signal = options.signal ?? AbortSignal.timeout(30_000);
   const response = await (options.transport ?? requestPinnedHttps)(url, addresses[0], signal);
   const contentType = response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
   if (!response.ok || !contentType || !SUPPORTED_IMAGE_CONTENT_TYPES.has(contentType)) {

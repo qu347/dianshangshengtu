@@ -16,6 +16,23 @@ function imageResponse(body: BodyInit = pngBytes) {
 }
 
 describe("fetchPublicImage", () => {
+  it("aborts while DNS resolution is still pending", async () => {
+    const controller = new AbortController();
+    const lookup = vi.fn(() => new Promise<ResolvedAddress[]>(() => undefined));
+    const transport = vi.fn();
+    const pending = fetchPublicImage("https://cdn.example/image.png", {
+      lookup,
+      transport,
+      signal: controller.signal,
+    });
+
+    controller.abort(new DOMException("请求已取消", "AbortError"));
+
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(lookup).toHaveBeenCalledOnce();
+    expect(transport).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["unspecified IPv4", "0.0.0.0", 4],
     ["private IPv4", "10.0.0.1", 4],
