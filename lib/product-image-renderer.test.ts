@@ -57,8 +57,31 @@ describe("renderProductImage", () => {
   });
 
   it("refuses to render a non-white image-one result", async () => {
-    await expect(renderProductImage(input, config({ imageIndex: 1 })))
+    const wood = await sharp({
+      create: { width, height, channels: 3, background: "#a07850" },
+    }).png().toBuffer();
+
+    await expect(renderProductImage(wood, config({ imageIndex: 1 })))
       .rejects.toThrow("白底商品主图不是纯白背景");
+  });
+
+  it.each([1, 2])("normalizes an off-white background for fixed image %s", async (imageIndex) => {
+    const source = await sharp({
+      create: { width, height, channels: 3, background: "#eeeeee" },
+    }).composite([{
+      input: await sharp({
+        create: { width: 300, height: 500, channels: 3, background: "#777777" },
+      }).png().toBuffer(),
+      left: 395,
+      top: 450,
+    }]).png().toBuffer();
+
+    const output = await renderProductImage(source, config({ imageIndex }));
+
+    expect(Array.from(await rawRegion(output, { left: 10, top: 10, width: 1, height: 1 })))
+      .toEqual([255, 255, 255]);
+    expect(Array.from(await rawRegion(output, { left: 500, top: 600, width: 1, height: 1 })))
+      .toEqual([119, 119, 119]);
   });
 
   it("rejects an overlong oriented dimension before composition", async () => {
@@ -115,11 +138,12 @@ describe("renderProductImage", () => {
       watermark: maxCyrillicText,
       applyWatermark: true,
     }));
+    const baseline = await renderProductImage(input, config());
     const untouchedRegion = { left: 0, top: height - 180, width: 400, height: 180 };
     const watermarkRegion = { left: width - 600, top: height - 180, width: 600, height: 180 };
 
     expect((await rawRegion(output, untouchedRegion)).equals(
-      await rawRegion(input, untouchedRegion),
+      await rawRegion(baseline, untouchedRegion),
     )).toBe(true);
     expect((await rawRegion(output, watermarkRegion)).equals(
       await rawRegion(input, watermarkRegion),
@@ -149,11 +173,12 @@ describe("renderProductImage", () => {
       watermark: maxWideCyrillicText,
       applyWatermark: true,
     }));
+    const baseline = await renderProductImage(input, config());
     const untouchedRegion = { left: 0, top: height - 180, width: 400, height: 180 };
     const watermarkRegion = { left: width - 600, top: height - 180, width: 600, height: 180 };
 
     expect((await rawRegion(output, untouchedRegion)).equals(
-      await rawRegion(input, untouchedRegion),
+      await rawRegion(baseline, untouchedRegion),
     )).toBe(true);
     expect((await rawRegion(output, watermarkRegion)).equals(
       await rawRegion(input, watermarkRegion),
