@@ -37,8 +37,10 @@ Product dimensions are flexible rather than tied to a preset product schema. Add
 
 The first two output positions are fixed for consistency:
 
-1. Image 1 is a white-background product main image without marketing copy or dimension labels.
-2. Image 2 is a dimension-annotation image when the run contains at least two images. The service generates a clean layout and the server overlays the localized labels and exact display values.
+1. Image 1 is a white-background product main image without marketing copy or dimension labels. The server normalizes the connected outer background to exact white and rejects a result that cannot be cleaned safely.
+2. Image 2 is a dimension-annotation image when the run contains at least two images. It is generated only after image 1 succeeds, using the signed, normalized image-1 result as its first visual reference. The image service creates a clean, complete 3/4 product view on white; a vision pass chooses product bounds and label placement; then the server draws opaque black brackets and the exact localized values supplied by the user.
+
+If image 1 fails, image 2 is held with a prompt to generate or retry the white-background main image first. Later independent images may continue. Retrying image 2 reuses the current signed image-1 result; arbitrary remote image URLs are not accepted as the base reference. If the optional vision placement pass is unavailable, a deterministic trusted layout is used instead of failing the image.
 
 The remaining plan fields stay editable before generation, including each Chinese generation prompt. In addition to 1:1, 2:3, and 3:2, the studio offers native `1090×1443` output as `3:4 竖版（1090×1443）` without substituting another aspect ratio.
 

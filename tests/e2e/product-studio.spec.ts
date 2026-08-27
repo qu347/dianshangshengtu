@@ -3,13 +3,17 @@ import { analysisWithTwoItems } from "../../features/product-studio/test-fixture
 import type { GenerationSettings, PlanItem } from "../../features/product-studio/model";
 
 function parseMultipartJsonField<T>(body: string, fieldName: string): T {
+  return JSON.parse(parseMultipartTextField(body, fieldName)) as T;
+}
+
+function parseMultipartTextField(body: string, fieldName: string): string {
   const fieldStart = body.indexOf(`name="${fieldName}"`);
   expect(fieldStart).toBeGreaterThanOrEqual(0);
   const valueStart = body.indexOf("\r\n\r\n", fieldStart);
   expect(valueStart).toBeGreaterThan(fieldStart);
   const valueEnd = body.indexOf("\r\n--", valueStart + 4);
   expect(valueEnd).toBeGreaterThan(valueStart);
-  return JSON.parse(body.slice(valueStart + 4, valueEnd)) as T;
+  return body.slice(valueStart + 4, valueEnd);
 }
 
 test("completes a two-image product workflow without real API calls", async ({ page }) => {
@@ -22,9 +26,9 @@ test("completes a two-image product workflow without real API calls", async ({ p
         ...analysisWithTwoItems.plan[1],
         title: "尺寸标注图",
         objective: "展示产品尺寸",
-        scene: "商品位于画面左侧主体区，右侧保留干净的尺寸标注区",
-        prompt: "商品放在左侧约 65% 主体区，右侧约 35% 作为尺寸标注区，不生成尺寸数值。",
-        annotations: [{ label: "Высота чашки", displayValue: "12 см" }],
+        scene: "纯白背景摄影棚，商品以 3/4 立体视角完整居中展示，四周留出标注空间",
+        prompt: "生成完整的 3/4 立体视角商品底图，整张画布使用纯白背景，商品居中且四周留出标注空间；不生成任何文字、数字、单位、尺寸线、箭头或侧边面板。",
+        annotations: [{ id: "height", label: "Высота чашки", displayValue: "12 см" }],
       },
     ],
   };
@@ -40,7 +44,7 @@ test("completes a two-image product workflow without real API calls", async ({ p
   const polledTokens = new Set<string>();
   const editedPrompts = new Map([
     ["1", "调整后的中文提示词：商品完整居中，使用纯白背景。"],
-    ["2", "调整后的中文提示词：商品位于左侧，右侧保留尺寸标注区，不生成尺寸数值。"],
+    ["2", "调整后的中文提示词：生成完整的 3/4 立体视角商品底图，整张画布使用纯白背景，商品完整居中且四周留出标注空间；不生成任何文字、数字、单位、尺寸线、箭头或侧边面板。"],
   ]);
 
   await page.route("**/api/product/analyze", (route) => {
@@ -68,6 +72,13 @@ test("completes a two-image product workflow without real API calls", async ({ p
       imageCount: 2,
       watermark: "My Ozon Shop",
     });
+    expect(item.id).toBe(String(submitted + 1));
+    if (item.id === "1") {
+      expect(requestBody).not.toContain('name="baseImageToken"');
+    } else {
+      expect(parseMultipartTextField(requestBody, "baseImageToken"))
+        .toBe(opaqueDownloadTokens[0]);
+    }
     const providerJobId = opaqueJobTokens[submitted];
     const downloadToken = opaqueDownloadTokens[submitted];
     expect(providerJobId).toBeTruthy();
