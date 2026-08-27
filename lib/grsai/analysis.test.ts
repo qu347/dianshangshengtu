@@ -72,6 +72,9 @@ it("requires Chinese planning fields and fixed dimension-image rules", () => {
   expect(prompt).toContain("所有标题、目标、场景和生图提示词必须使用中文");
   expect(prompt).toContain("第 1 项必须是白底商品主图");
   expect(prompt).toContain("第 2 项必须是尺寸标注图");
+  expect(prompt).toContain("3/4 立体视角");
+  expect(prompt).toContain("纯白背景");
+  expect(prompt).toContain("不得生成任何文字、数字、单位、尺寸线、箭头或侧边面板");
   expect(prompt).toContain("返回尺寸 ID “height”及标注标签“杯高”的英文翻译");
   expect(prompt).toContain("AI 不得返回或改写尺寸数值");
 });

@@ -25,7 +25,10 @@ it.each([
 it("keeps image 2 free of AI-generated dimension text for the server overlay", () => {
   const prompt = buildGenerationPrompt(makePlanItems(2)[1], defaultSettings);
 
-  expect(prompt).toContain("第 2 张图片不得生成任何尺寸文字，服务器将在右侧叠加尺寸标注");
+  expect(prompt).toContain("第 2 张以第一张参考图中的商品为准，生成完整的 3/4 立体视角商品底图");
+  expect(prompt).toContain("整张画布保持纯白");
+  expect(prompt).toContain("不得生成文字或尺寸图形");
+  expect(prompt).not.toContain("服务器将在右侧叠加尺寸标注");
 });
 
 it("submits gpt-image-2 with reference images and JSON reply mode", async () => {

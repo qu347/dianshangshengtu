@@ -21,8 +21,8 @@ const trustedPlan = [
     ...analysisWithTwoItems.plan[1],
     id: "2",
     type: "detail" as const,
-    scene: "商品位于画面左侧主体区，右侧保留干净的尺寸标注区",
-    prompt: "商品放在左侧约 65% 主体区，右侧约 35% 作为尺寸标注区，不生成尺寸数值。",
+    scene: "纯白背景摄影棚，商品以 3/4 立体视角完整居中展示，四周留出标注空间",
+    prompt: "生成完整的 3/4 立体视角商品底图，整张画布使用纯白背景，商品居中且四周留出标注空间；不生成任何文字、数字、单位、尺寸线、箭头或侧边面板。",
     annotations: [{ id: "height", label: "杯高", displayValue: "12 cm" }],
   },
 ];
@@ -41,7 +41,12 @@ it("forces image one to white background and image two to dimensions", () => {
   expect(result.plan[0]).toMatchObject({ type: "main", copy: "", scene: expect.stringContaining("纯白") });
   expect(result.plan[0].prompt).toContain("纯白背景");
   expect(result.plan[1].annotations).toEqual(analysis.plan[1].annotations);
-  expect(result.plan[1].prompt).toContain("右侧尺寸标注区");
+  expect(result.plan[1].prompt).toContain("3/4 立体视角");
+  expect(result.plan[1].prompt).toContain("纯白背景");
+  expect(result.plan[1].prompt).toContain("四周留出标注空间");
+  expect(result.plan[1].prompt).toContain("不生成任何文字、数字、单位、尺寸线、箭头或侧边面板");
+  expect(result.plan[1].prompt).not.toContain("左侧约 65%");
+  expect(result.plan[1].prompt).not.toContain("右侧约 35%");
   expect(analysis).toEqual(originalAnalysis);
   expect(analysis.plan[0]).toEqual(originalFirstItem);
   expect(analysis.plan[1]).toEqual(originalSecondItem);

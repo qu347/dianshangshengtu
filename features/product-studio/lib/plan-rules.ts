@@ -14,8 +14,8 @@ const firstPlanTemplate = {
   title: "白底商品主图",
   objective: "完整展示当前销售商品",
   copy: "",
-  scene: "纯白背景摄影棚，商品居中完整展示",
-  prompt: "仅展示当前销售商品，保持结构、颜色、材质、Logo 和 SKU 不变；商品完整居中且清晰，不裁切主体；使用纯白背景，不添加营销文案、尺寸文字或其他图形。",
+  scene: "纯白背景摄影棚，整张画布无纹理无渐变，商品居中完整展示",
+  prompt: "仅展示当前销售商品，保持结构、颜色、材质、Logo 和 SKU 不变；商品完整居中且清晰，不裁切主体，四周保留安全边距；整张画布使用纯白背景且无纹理无渐变，允许商品主体附近存在自然接触阴影；不添加营销文案、尺寸文字或其他图形。",
 };
 
 const secondPlanTemplate = {
@@ -23,8 +23,8 @@ const secondPlanTemplate = {
   title: "尺寸标注图",
   objective: "展示产品尺寸并保留准确比例",
   copy: "",
-  scene: "商品位于画面左侧主体区，右侧保留干净的尺寸标注区",
-  prompt: "生成干净的产品底图：商品放置在画面左侧约 65% 的主体区，右侧约 35% 保持干净作为右侧尺寸标注区；保持产品结构、颜色、材质、Logo 和 SKU 不变，不生成尺寸数值，程序将在右侧添加尺寸标注。",
+  scene: "纯白背景摄影棚，商品以 3/4 立体视角完整居中展示，四周留出标注空间",
+  prompt: "生成完整的 3/4 立体视角商品底图，保持产品结构、颜色、材质、Logo 和 SKU 不变；整张画布使用纯白背景，商品居中完整、不裁切且四周留出标注空间；不生成任何文字、数字、单位、尺寸线、箭头或侧边面板。",
 };
 
 export function applyPlanRules(analysis: ProductAnalysis): ProductAnalysis {
@@ -92,12 +92,13 @@ export function GenerationPlanItemSchema(settings: GenerationSettings) {
       if (item.annotations.length === 0) {
         context.addIssue({ code: "custom", path: ["annotations"], message: "第 2 张必须包含尺寸标注" });
       }
-      const hasDimensionLayout = item.scene.includes("左侧")
-        && item.scene.includes("右侧")
-        && item.prompt.includes("左侧")
-        && item.prompt.includes("右侧")
-        && item.prompt.includes("尺寸标注")
-        && item.prompt.includes("不生成尺寸");
+      const hasDimensionLayout = item.scene.includes("3/4 立体视角")
+        && item.scene.includes("纯白背景")
+        && item.scene.includes("标注空间")
+        && item.prompt.includes("3/4 立体视角")
+        && item.prompt.includes("纯白背景")
+        && item.prompt.includes("四周留出标注空间")
+        && item.prompt.includes("不生成任何文字、数字、单位、尺寸线、箭头或侧边面板");
       if (!hasDimensionLayout) {
         context.addIssue({ code: "custom", path: ["prompt"], message: "第 2 张必须保留尺寸标注版式" });
       }

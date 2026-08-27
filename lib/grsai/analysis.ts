@@ -73,7 +73,8 @@ function planningRequirements(input: Pick<PromptInput, "imageCount" | "language"
     copyRule,
     "第 1 项必须是白底商品主图，不得包含营销文案或尺寸标注。",
     ...(input.imageCount >= 2 ? [
-      "第 2 项必须是尺寸标注图，商品置于左侧，右侧保留干净的尺寸标注区。",
+      "第 2 项必须是尺寸标注图：生成纯白背景、商品完整居中并四周留出标注空间的 3/4 立体视角底图。",
+      "第 2 项的图片模型不得生成任何文字、数字、单位、尺寸线、箭头或侧边面板，程序将在生成后绘制可信标注。",
       `第 2 项必须按输入顺序返回恰好 ${input.dimensions.length} 个 annotations，每项只包含稳定尺寸 ID 和翻译后的 label。`,
       "AI 不得返回或改写尺寸数值，程序会从可信尺寸事实写入显示值。",
       ...dimensionRules,
