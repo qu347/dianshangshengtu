@@ -1,4 +1,4 @@
-import type { ImageRenderConfig } from "./image-render-config";
+import { whiteBackgroundOptionsFor, type ImageRenderConfig } from "./image-render-config";
 import { fallbackDimensionLayout } from "./dimension-layout";
 import { analyzeDimensionLayout } from "./grsai/dimension-layout";
 import { normalizeWhiteBackground } from "./product-image-validation";
@@ -19,10 +19,16 @@ export async function prepareGeneratedImageResult(input: {
     return { ok: true, render: input.render };
   }
 
+  let source: Buffer;
+  try {
+    source = await (input.fetchImage ?? fetchPublicImage)(input.url);
+  } catch {
+    return { ok: false, error: "生成图片下载失败，请重试此图" };
+  }
+
   let normalized: Buffer;
   try {
-    const source = await (input.fetchImage ?? fetchPublicImage)(input.url);
-    normalized = await normalizeWhiteBackground(source);
+    normalized = await normalizeWhiteBackground(source, whiteBackgroundOptionsFor(input.render));
   } catch {
     return {
       ok: false,

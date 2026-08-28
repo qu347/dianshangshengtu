@@ -16,6 +16,6 @@ export function createClothingRenderConfig(
     annotations: [],
     watermark,
     applyWatermark: shouldApplyWatermark(settings.platform, imageIndex, watermark),
+    ...(imageIndex === 1 ? { whiteBackgroundMode: "apparel" as const } : {}),
   };
 }
-

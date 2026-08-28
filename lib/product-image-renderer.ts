@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import type { ImageRenderConfig } from "./image-render-config";
+import { whiteBackgroundOptionsFor, type ImageRenderConfig } from "./image-render-config";
 import { fallbackDimensionLayout, type SmartDimensionLayout } from "./dimension-layout";
 import { normalizeWhiteBackground } from "./product-image-validation";
 
@@ -222,7 +222,7 @@ export async function renderProductImage(input: Buffer, config: ImageRenderConfi
     && (config.annotations.length > 0 || config.dimensionLayout !== undefined);
   try {
     normalized = config.imageIndex === 1 || isDimensionImage
-      ? await normalizeWhiteBackground(input)
+      ? await normalizeWhiteBackground(input, whiteBackgroundOptionsFor(config))
       : await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).rotate().png().toBuffer();
   } catch {
     throw new Error(config.imageIndex === 1

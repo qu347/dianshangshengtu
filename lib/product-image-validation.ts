@@ -7,11 +7,15 @@ const REQUIRED_WHITE_RATIO = 0.995;
 const NEAR_WHITE_MIN_CHANNEL = 225;
 const NEAR_WHITE_MAX_SPREAD = 18;
 
-function isNearWhite(data: Buffer, offset: number) {
+export type WhiteBackgroundOptions = {
+  minimumChannel?: number;
+};
+
+function isNearWhite(data: Buffer, offset: number, minimumChannel: number) {
   const red = data[offset];
   const green = data[offset + 1];
   const blue = data[offset + 2];
-  return Math.min(red, green, blue) >= NEAR_WHITE_MIN_CHANNEL
+  return Math.min(red, green, blue) >= minimumChannel
     && Math.max(red, green, blue) - Math.min(red, green, blue) <= NEAR_WHITE_MAX_SPREAD;
 }
 
@@ -55,7 +59,10 @@ export async function hasPureWhiteOuterBand(input: Buffer) {
   return pureWhiteOuterBandRatio(data, info.width, info.height, info.channels) >= REQUIRED_WHITE_RATIO;
 }
 
-export async function normalizeWhiteBackground(input: Buffer) {
+export async function normalizeWhiteBackground(
+  input: Buffer,
+  options: WhiteBackgroundOptions = {},
+) {
   const { data, info } = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
     .rotate()
     .removeAlpha()
@@ -68,8 +75,9 @@ export async function normalizeWhiteBackground(input: Buffer) {
   const queue = new Int32Array(pixelCount);
   let head = 0;
   let tail = 0;
+  const minimumChannel = options.minimumChannel ?? NEAR_WHITE_MIN_CHANNEL;
   const enqueue = (index: number) => {
-    if (visited[index] || !isNearWhite(data, index * info.channels)) return;
+    if (visited[index] || !isNearWhite(data, index * info.channels, minimumChannel)) return;
     visited[index] = 1;
     queue[tail] = index;
     tail += 1;

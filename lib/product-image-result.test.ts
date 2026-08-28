@@ -10,6 +10,7 @@ const smartLayout = {
 };
 let offWhite: Buffer;
 let wood: Buffer;
+let apparelGray: Buffer;
 
 beforeAll(async () => {
   offWhite = await sharp({
@@ -24,6 +25,15 @@ beforeAll(async () => {
   wood = await sharp({
     create: { width: 300, height: 400, channels: 3, background: "#a07850" },
   }).png().toBuffer();
+  apparelGray = await sharp({
+    create: { width: 300, height: 400, channels: 3, background: "#d8d8d8" },
+  }).composite([{
+    input: await sharp({
+      create: { width: 120, height: 220, channels: 3, background: "#505050" },
+    }).png().toBuffer(),
+    left: 90,
+    top: 90,
+  }]).png().toBuffer();
 });
 
 function render(imageIndex: number): ImageRenderConfig {
@@ -54,6 +64,16 @@ it("accepts a safely normalizable image-one result without analyzing placement",
   expect(analyzeLayout).not.toHaveBeenCalled();
 });
 
+it("uses apparel background tolerance for an apparel image-one result", async () => {
+  const apparelRender = { ...render(1), whiteBackgroundMode: "apparel" as const };
+
+  await expect(prepareGeneratedImageResult({
+    url: "https://cdn.example/apparel.png",
+    render: apparelRender,
+    fetchImage: vi.fn().mockResolvedValue(apparelGray),
+  })).resolves.toEqual({ ok: true, render: apparelRender });
+});
+
 it("returns a retryable main-image error for a non-white background", async () => {
   await expect(prepareGeneratedImageResult({
     url: "https://cdn.example/main.png",
@@ -62,6 +82,17 @@ it("returns a retryable main-image error for a non-white background", async () =
   })).resolves.toEqual({
     ok: false,
     error: "白底商品主图背景处理失败，请重试此图",
+  });
+});
+
+it("reports a generated-image download failure separately from background rejection", async () => {
+  await expect(prepareGeneratedImageResult({
+    url: "https://cdn.example/main.png",
+    render: render(1),
+    fetchImage: vi.fn().mockRejectedValue(new Error("network unavailable")),
+  })).resolves.toEqual({
+    ok: false,
+    error: "生成图片下载失败，请重试此图",
   });
 });
 

@@ -1,6 +1,7 @@
 import { ClothingGenerationSettingsSchema, type ClothingPlanItem } from "@/features/clothing-studio/model";
 import { ClothingGenerationPlanItemSchema } from "@/features/clothing-studio/lib/plan-rules";
 import { createClothingRenderConfig } from "@/lib/clothing-render-config";
+import { whiteBackgroundOptionsFor } from "@/lib/image-render-config";
 import { resolveClothingReference } from "@/lib/clothing-reference";
 import { validateClothingImages, validateClothingPostRequest } from "@/lib/clothing-upload";
 import { signDownloadUrl, signJobToken, verifyDownloadToken } from "@/lib/download-token";
@@ -69,7 +70,10 @@ export async function POST(request: Request) {
         if (typeof baseImageToken !== "string" || !baseImageToken) throw new Error();
         const verified = verifyDownloadToken(baseImageToken, tokenSecret);
         if (verified.render.imageIndex !== 1) throw new Error();
-        const normalized = await normalizeWhiteBackground(await fetchPublicImage(verified.url));
+        const normalized = await normalizeWhiteBackground(
+          await fetchPublicImage(verified.url),
+          whiteBackgroundOptionsFor(verified.render),
+        );
         normalizedMain = `data:image/png;base64,${normalized.toString("base64")}`;
         model = await resolveClothingReference(form, {
           fileField: "modelImage",
@@ -152,4 +156,3 @@ export async function POST(request: Request) {
     return Response.json({ error: "图片生成提交失败，请稍后重试" }, { status: 500 });
   }
 }
-

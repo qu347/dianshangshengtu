@@ -13,6 +13,7 @@ it("creates annotation-free render settings and applies shared watermark rules",
     annotations: [],
     watermark: "店铺名",
     applyWatermark: true,
+    whiteBackgroundMode: "apparel",
   });
   expect(createClothingRenderConfig(first, {
     ...defaultClothingSettings,
@@ -35,4 +36,3 @@ it("rejects malformed and out-of-range image ids", () => {
   expect(() => createClothingRenderConfig({ ...item, id: "3" }, defaultClothingSettings))
     .toThrow("图片序号无效");
 });
-

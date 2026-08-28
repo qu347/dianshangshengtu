@@ -100,6 +100,10 @@ it("submits later images in normalized-main, garments, model, optional-scene ord
 
   expect(response.status).toBe(200);
   expect(fetchPublicImage).toHaveBeenCalledWith("https://cdn.example/main.png");
+  expect(normalizeWhiteBackground).toHaveBeenCalledWith(
+    Buffer.from("main-source"),
+    { minimumChannel: 205 },
+  );
   expect(submitImageGeneration).toHaveBeenCalledWith({
     images: [
       `data:image/png;base64,${Buffer.from("normalized-main").toString("base64")}`,
@@ -142,4 +146,3 @@ it("returns only an opaque provider job id while generation is running", async (
   expect(body.task.providerJobId).not.toContain("raw-job");
   expect(verifyJobToken(body.task.providerJobId, "test-secret").providerJobId).toBe("raw-job");
 });
-

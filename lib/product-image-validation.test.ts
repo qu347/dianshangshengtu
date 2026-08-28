@@ -13,6 +13,7 @@ import {
 let compliant: Buffer;
 let noncompliant: Buffer;
 let safelyNormalizable: Buffer;
+let lightNeutralGradient: Buffer;
 
 beforeAll(async () => {
   compliant = await sharp({
@@ -42,6 +43,18 @@ beforeAll(async () => {
     left: 90,
     top: 90,
   }]).png().toBuffer();
+  lightNeutralGradient = await sharp(Buffer.from(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="300" height="400">
+      <defs>
+        <linearGradient id="background" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#d8d8d8" />
+          <stop offset="1" stop-color="#f5f5f5" />
+        </linearGradient>
+      </defs>
+      <rect width="300" height="400" fill="url(#background)" />
+      <rect x="90" y="90" width="120" height="220" fill="#505050" />
+    </svg>
+  `)).png().toBuffer();
 });
 
 async function pixelAt(image: Buffer, left: number, top: number) {
@@ -69,6 +82,16 @@ describe("white-background validation", () => {
     await expect(pixelAt(normalized, 10, 10)).resolves.toEqual([255, 255, 255]);
     await expect(pixelAt(normalized, 100, 110)).resolves.toEqual([160, 160, 160]);
     await expect(pixelAt(normalized, 150, 190)).resolves.toEqual([240, 240, 240]);
+  });
+
+  it("normalizes a light neutral gradient only when apparel tolerance is requested", async () => {
+    await expect(normalizeWhiteBackground(lightNeutralGradient)).rejects.toThrow("白底背景处理失败");
+
+    const normalized = await normalizeWhiteBackground(lightNeutralGradient, { minimumChannel: 205 });
+
+    await expect(hasPureWhiteOuterBand(normalized)).resolves.toBe(true);
+    await expect(pixelAt(normalized, 10, 10)).resolves.toEqual([255, 255, 255]);
+    await expect(pixelAt(normalized, 150, 190)).resolves.toEqual([80, 80, 80]);
   });
 
   it("rejects a non-white textured-color background instead of erasing it", async () => {

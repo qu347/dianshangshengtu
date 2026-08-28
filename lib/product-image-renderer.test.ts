@@ -73,6 +73,28 @@ describe("renderProductImage", () => {
       .rejects.toThrow("白底商品主图不是纯白背景");
   });
 
+  it("renders an apparel image-one result with a light neutral background", async () => {
+    const source = await sharp({
+      create: { width, height, channels: 3, background: "#d8d8d8" },
+    }).composite([{
+      input: await sharp({
+        create: { width: 300, height: 500, channels: 3, background: "#505050" },
+      }).png().toBuffer(),
+      left: 395,
+      top: 450,
+    }]).png().toBuffer();
+
+    const output = await renderProductImage(source, config({
+      imageIndex: 1,
+      whiteBackgroundMode: "apparel",
+    }));
+
+    expect(Array.from(await rawRegion(output, { left: 10, top: 10, width: 1, height: 1 })))
+      .toEqual([255, 255, 255]);
+    expect(Array.from(await rawRegion(output, { left: 500, top: 600, width: 1, height: 1 })))
+      .toEqual([80, 80, 80]);
+  });
+
   it.each([1, 2])("normalizes an off-white background for fixed image %s", async (imageIndex) => {
     const source = await sharp({
       create: { width, height, channels: 3, background: "#eeeeee" },

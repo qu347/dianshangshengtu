@@ -1,6 +1,7 @@
 import { DimensionAnnotationSchema, type GenerationSettings, type PlanItem } from "@/features/product-studio/model";
 import { shouldApplyWatermark } from "@/features/product-studio/lib/platform-rules";
 import { fallbackDimensionLayout, type SmartDimensionLayout } from "./dimension-layout";
+import type { WhiteBackgroundOptions } from "./product-image-validation";
 
 export type ImageRenderConfig = {
   imageIndex: number;
@@ -8,7 +9,14 @@ export type ImageRenderConfig = {
   dimensionLayout?: SmartDimensionLayout;
   watermark: string;
   applyWatermark: boolean;
+  whiteBackgroundMode?: "apparel";
 };
+
+export function whiteBackgroundOptionsFor(
+  render: ImageRenderConfig,
+): WhiteBackgroundOptions | undefined {
+  return render.whiteBackgroundMode === "apparel" ? { minimumChannel: 205 } : undefined;
+}
 
 function imageIndexFromId(id: string) {
   if (!/^[1-9]\d*$/.test(id)) throw new Error("图片序号无效");
