@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { analysisWithTwoItems } from "../../features/product-studio/test-fixtures";
 import type { GenerationSettings, PlanItem } from "../../features/product-studio/model";
 
+const testOrigin = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`;
+
 function parseMultipartJsonField<T>(body: string, fieldName: string): T {
   return JSON.parse(parseMultipartTextField(body, fieldName)) as T;
 }
@@ -121,7 +123,7 @@ test("completes a two-image product workflow without real API calls", async ({ p
   const renderedResultUrls: string[] = [];
   await page.route("**/api/product/download?*", (route) => {
     const url = new URL(route.request().url());
-    expect(url.origin).toBe("http://127.0.0.1:3000");
+    expect(url.origin).toBe(testOrigin);
     expect(url.pathname).toBe("/api/product/download");
     expect(url.searchParams.get("inline")).toBe("1");
     expect(opaqueDownloadTokens).toContain(url.searchParams.get("token"));
@@ -178,7 +180,7 @@ test("completes a two-image product workflow without real API calls", async ({ p
   const resultSources = await page.getByRole("img", { name: /生成结果/ }).evaluateAll((images) => images.map((image) => (image as HTMLImageElement).src));
   for (const [index, source] of resultSources.entries()) {
     const url = new URL(source);
-    expect(url.origin).toBe("http://127.0.0.1:3000");
+    expect(url.origin).toBe(testOrigin);
     expect(url.pathname).toBe("/api/product/download");
     expect(url.searchParams.get("token")).toBe(opaqueDownloadTokens[index]);
     expect(url.searchParams.get("inline")).toBe("1");
