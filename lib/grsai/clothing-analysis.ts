@@ -28,6 +28,9 @@ type ChatCompletion = {
   choices?: Array<{ message?: { content?: unknown } }>;
 };
 
+const primaryModel = "gemini-3.1-flash-lite";
+const fallbackModel = "gemini-2.5-flash";
+
 const requiredFields = [
   "category",
   "productName",
@@ -108,16 +111,38 @@ function completionContent(response: ChatCompletion) {
   return content;
 }
 
-function requestFor(messages: unknown[]) {
+function requestFor(messages: unknown[], model: string) {
   return {
     method: "POST",
     signal: AbortSignal.timeout(180_000),
     body: JSON.stringify({
-      model: "gemini-3.1-flash-lite",
+      model,
       stream: false,
       messages,
     }),
   };
+}
+
+async function requestAnalysis(
+  messages: unknown[],
+  fetchImpl: typeof fetch,
+) {
+  try {
+    return await grsaiFetch<ChatCompletion>(
+      "/v1/chat/completions",
+      requestFor(messages, primaryModel),
+      fetchImpl,
+    );
+  } catch (error) {
+    if (!(error instanceof GrsaiError) || (error.code !== "upstream" && error.code !== "timeout")) {
+      throw error;
+    }
+    return grsaiFetch<ChatCompletion>(
+      "/v1/chat/completions",
+      requestFor(messages, fallbackModel),
+      fetchImpl,
+    );
+  }
 }
 
 export async function analyzeClothing(
@@ -145,20 +170,15 @@ export async function analyzeClothing(
     { role: "user", content },
   ];
 
-  const first = await grsaiFetch<ChatCompletion>(
-    "/v1/chat/completions",
-    requestFor(messages),
-    fetchImpl,
-  );
+  const first = await requestAnalysis(messages, fetchImpl);
   let invalidContent = "";
   try {
     invalidContent = completionContent(first);
     return parseAnalysisContent(invalidContent, input.settings);
   } catch {
-    const repair = await grsaiFetch<ChatCompletion>(
-      "/v1/chat/completions",
-      requestFor([
-        ...messages,
+    const repair = await requestAnalysis(
+      [
+        { role: "system", content: "你是 JSON 修复器。只修复提供的服装分析结果，不添加新事实。" },
         {
           role: "user",
           content: [
@@ -169,7 +189,7 @@ export async function analyzeClothing(
             invalidContent,
           ].join("\n"),
         },
-      ]),
+      ],
       fetchImpl,
     );
     try {

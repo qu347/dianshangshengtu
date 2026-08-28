@@ -80,6 +80,27 @@ it("repairs one invalid JSON response and never makes a third request", async ()
 
   expect(result.plan).toHaveLength(2);
   expect(fetchImpl).toHaveBeenCalledTimes(2);
+  const repairRequest = JSON.parse(String(fetchImpl.mock.calls[1][1]?.body));
+  expect(JSON.stringify(repairRequest.messages)).not.toContain("image_url");
+  expect(JSON.stringify(repairRequest.messages)).toContain("not-json");
+});
+
+it.each([400, 502])("falls back to the stable vision model after upstream HTTP %s", async (status) => {
+  const fetchImpl = vi.fn<typeof fetch>()
+    .mockResolvedValueOnce(new Response("upstream error", { status }))
+    .mockResolvedValueOnce(chatResponse(JSON.stringify(validProviderAnalysis())));
+
+  const result = await analyzeClothing({
+    garments: ["data:image/webp;base64,Z2FybWVudA=="],
+    model: "data:image/webp;base64,bW9kZWw=",
+    settings: defaultClothingSettings,
+    requirements: "",
+  }, fetchImpl);
+
+  expect(result.plan).toHaveLength(2);
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+  expect(JSON.parse(String(fetchImpl.mock.calls[0][1]?.body)).model).toBe("gemini-3.1-flash-lite");
+  expect(JSON.parse(String(fetchImpl.mock.calls[1][1]?.body)).model).toBe("gemini-2.5-flash");
 });
 
 it("returns a retryable format error after two invalid responses", async () => {
