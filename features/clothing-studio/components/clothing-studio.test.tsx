@@ -42,6 +42,7 @@ it("requires a model, supports an optional scene, then preserves two-stage submi
   const user = userEvent.setup();
   const api = createApi();
   render(<ClothingStudio api={api} />);
+  expect(screen.getByText(/AI 会先生成纯白立体服装主图/)).toBeVisible();
   expect(screen.getByText("可选 · 统一整组场景风格")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "开始分析服装" }));
   expect(screen.getByRole("alert")).toHaveTextContent("请选择模特图");
@@ -91,4 +92,3 @@ it("restores a saved task without restoring local files or retry authority", asy
   expect(screen.getByRole("button", { name: "重试第 1 张" })).toBeDisabled();
   expect(screen.getByText("0 / 6")).toBeVisible();
 });
-

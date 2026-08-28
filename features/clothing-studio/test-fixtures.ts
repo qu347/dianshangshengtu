@@ -46,13 +46,13 @@ export function makeClothingAnalysis(imageCount = 2): ClothingAnalysis {
     visualDirection: "柔和自然光与简洁构图",
     plan: Array.from({ length: imageCount }, (_, index) => ({
       id: String(index + 1),
-      type: index === 0 ? "flat_lay" : "model",
-      title: index === 0 ? "白底服装平铺主图" : `模特展示图 ${index + 1}`,
+      type: index === 0 ? "product" : "model",
+      title: index === 0 ? "白底立体服装主图" : `模特展示图 ${index + 1}`,
       objective: index === 0 ? "完整展示服装" : "展示穿着版型",
       copy: index === 0 ? "" : "自然穿搭",
       scene: index === 0 ? "纯白背景摄影棚" : "统一自然光场景",
       prompt: index === 0
-        ? "纯白背景中平铺服装，不出现人物或道具。"
+        ? "纯白背景中使用隐形模特式立体成衣轮廓，不显示人物、皮肤或实体模特。"
         : "保持同一模特与同一服装，展示自然穿搭效果。",
     })),
   };

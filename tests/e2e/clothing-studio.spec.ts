@@ -165,7 +165,7 @@ test("completes the mocked two-stage clothing workflow without product or Grsai 
   await page.getByLabel("第 2 张中文生图提示词").fill(editedSecondPrompt);
   await page.getByRole("button", { name: "确认规划并生成" }).click();
 
-  await expect(page.getByRole("img", { name: "白底服装平铺主图" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "白底立体服装主图" })).toBeVisible();
   await expect(page.getByRole("img", { name: "同模特场景展示" })).toBeVisible();
   await expect(page.getByRole("button", { name: "下载全部" })).toBeEnabled();
   await page.getByRole("button", { name: "下载第 1 张" }).click();

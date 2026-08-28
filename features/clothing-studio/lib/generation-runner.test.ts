@@ -62,7 +62,7 @@ it("blocks all dependent images after two white-background failures", async () =
   });
 
   expect(api.submit).toHaveBeenCalledTimes(2);
-  expect(tasks.slice(1).every((task) => task.error === "请先生成或重试白底服装平铺主图")).toBe(true);
+  expect(tasks.slice(1).every((task) => task.error === "请先生成或重试白底立体服装主图")).toBe(true);
   expect(changes).toEqual(expect.arrayContaining([
     expect.objectContaining({ planItemId: "4", status: "failed" }),
   ]));
@@ -121,4 +121,3 @@ it("reuses the original plan and main token for a single later-image retry", asy
     model,
   }));
 });
-

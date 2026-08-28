@@ -16,6 +16,7 @@ it("locks image-one type and disables confirmation when an editable Chinese prom
     onConfirm={vi.fn()}
   />);
   expect(screen.getByLabelText("第 1 张类型")).toBeDisabled();
+  expect(screen.getByLabelText("第 1 张类型")).toHaveDisplayValue("白底立体主图");
   expect(screen.getByRole("button", { name: "确认规划并生成" })).toBeEnabled();
 
   await user.clear(screen.getByLabelText("第 2 张中文生图提示词"));
@@ -29,4 +30,3 @@ it("locks image-one type and disables confirmation when an editable Chinese prom
   />);
   expect(screen.getByRole("button", { name: "确认规划并生成" })).toBeDisabled();
 });
-

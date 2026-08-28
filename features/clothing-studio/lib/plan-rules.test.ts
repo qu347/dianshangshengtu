@@ -30,17 +30,21 @@ function analysis(): ClothingAnalysis {
   };
 }
 
-it("forces image one to be the canonical white flat lay", () => {
+it("forces image one to be the canonical three-dimensional white product image", () => {
   const ruled = applyClothingPlanRules(analysis());
 
   expect(ruled.plan[0]).toMatchObject({
     id: "1",
-    type: "flat_lay",
-    title: "白底服装平铺主图",
+    type: "product",
+    title: "白底立体服装主图",
     copy: "",
   });
   expect(ruled.plan[0].prompt).toContain("纯白背景");
-  expect(ruled.plan[0].prompt).toContain("不出现人物");
+  expect(ruled.plan[0].prompt).toContain("不显示人物、皮肤、实体模特");
+  expect(ruled.plan[0].prompt).toContain("接近自然穿着时的成衣版型");
+  expect(ruled.plan[0].prompt).toContain("隐形模特式立体成衣轮廓");
+  expect(ruled.plan[0].prompt).toContain("少量真实褶皱与面料垂坠");
+  expect(ruled.plan[0].prompt).toContain("避免塑料感、悬浮感和过度平整");
   expect(ruled.plan[1].type).toBe("detail");
 });
 
@@ -49,17 +53,47 @@ it("accepts a consecutive Chinese plan whose length matches settings", () => {
   expect(ClothingGenerationPlanSchema(settings).parse(ruled.plan)).toHaveLength(3);
 });
 
-it("rejects later flat lays, non-Chinese planning fields, and nonconsecutive IDs", () => {
+it("rejects later product images, non-Chinese planning fields, and nonconsecutive IDs", () => {
   const ruled = applyClothingPlanRules(analysis());
   expect(() => ClothingGenerationPlanSchema(settings).parse(
-    ruled.plan.map((item, index) => index === 1 ? { ...item, type: "flat_lay" } : item),
-  )).toThrow("仅第 1 张可以是白底平铺图");
+    ruled.plan.map((item, index) => index === 1 ? { ...item, type: "product" } : item),
+  )).toThrow("仅第 1 张可以是白底立体主图");
   expect(() => ClothingGenerationPlanSchema(settings).parse(
     ruled.plan.map((item, index) => index === 1 ? { ...item, prompt: "English only" } : item),
   )).toThrow("规划内容必须使用中文");
   expect(() => ClothingGenerationPlanSchema(settings).parse(
     ruled.plan.map((item, index) => index === 1 ? { ...item, id: "3" } : item),
   )).toThrow("规划序号必须从 1 连续排列");
+});
+
+it("normalizes legacy later flat-lay types before enforcing the image-one-only rule", () => {
+  const ruled = applyClothingPlanRules(analysis());
+  expect(() => ClothingGenerationPlanSchema(settings).parse(
+    ruled.plan.map((item, index) => index === 1 ? { ...item, type: "flat_lay" } : item),
+  )).toThrow("仅第 1 张可以是白底立体主图");
+});
+
+it("rejects model prompts that directly request a hollow mannequin instead of the selected model", () => {
+  const ruled = applyClothingPlanRules(analysis());
+  expect(() => ClothingGenerationPlanSchema(settings).parse(
+    ruled.plan.map((item, index) => index === 1 ? {
+      ...item,
+      type: "model",
+      prompt: "使用空心隐形模特，不显示真人",
+    } : item),
+  )).toThrow("模特图必须显示所选真人模特");
+});
+
+it.each([
+  "不要显示其他人物，仅显示所选真人模特",
+  "保持隐形模特主图中的服装细节，由所选真人模特穿着",
+  "使用隐形模特主图中的服装细节，由所选真人模特穿着",
+  "不要显示所选模特以外的其他人物",
+])("accepts valid model instructions that mention people or the invisible-mannequin source", (prompt) => {
+  const ruled = applyClothingPlanRules(analysis());
+  expect(() => ClothingGenerationPlanSchema(settings).parse(
+    ruled.plan.map((item, index) => index === 1 ? { ...item, type: "model", prompt } : item),
+  )).not.toThrow();
 });
 
 it("removes visible copy when language is none", () => {

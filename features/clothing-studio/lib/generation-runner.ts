@@ -163,7 +163,7 @@ export async function runClothingGenerationBatch(input: {
         planItemId: item.id,
         status: "failed",
         progress: 0,
-        error: "请先生成或重试白底服装平铺主图",
+        error: "请先生成或重试白底立体服装主图",
       };
       input.onTaskChange(blocked);
       results.push(blocked);

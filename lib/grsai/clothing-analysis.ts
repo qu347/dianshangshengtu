@@ -56,11 +56,11 @@ export function buildClothingAnalysisPrompt(input: ClothingAnalysisPromptInput) 
     `目标平台：${input.settings.platform}；目标语言：${input.settings.language}。`,
     `必须返回恰好 ${input.settings.imageCount} 个规划项，id 从 1 连续排列。`,
     "category 只能是 top、bottom、dress、coat、set。",
-    "plan.type 只能是 flat_lay、model、scene、detail。",
+    "plan.type 只能是 product、model、scene、detail。",
     "标题、画面目标、场景和生图提示词必须使用中文。",
     copyRule,
-    "第 1 项必须是纯白背景的服装平铺主图：服装完整居中，不出现人物、人体模型、衣架、道具、营销文字或尺寸标注。",
-    "第 2 项及以后不得再使用 flat_lay；应按数量优先规划模特正面、3/4 视角、侧背面、穿搭场景和面料细节，避免重复构图。",
+    "第 1 项必须是纯白背景的立体服装主图：使用隐形模特式立体成衣轮廓，呈现自然肩型、领口、袖型、衣身和下摆；服装完整居中，不显示人物、皮肤或实体模特，不出现衣架、道具、营销文字或尺寸标注。",
+    "第 2 项及以后不得再使用 product；应按数量优先规划模特正面、3/4 视角、侧背面、穿搭场景和面料细节，避免重复构图。",
     "所有人物图使用同一模特，保持脸部、体型、肤色和发型一致；保持服装颜色、版型、纹理、图案、Logo 与关键结构一致。",
     sceneRule,
     "不得臆造面料成分、认证、功能、尺寸、价格或图片不可确认的信息；不确定事实标记为 inferred。",
@@ -85,9 +85,9 @@ const categoryAliases = {
   set: ["set", "suit", "two_piece", "套装"],
 } satisfies Record<ClothingCategory, readonly string[]>;
 
-type PlanType = "flat_lay" | "model" | "scene" | "detail";
+type PlanType = "product" | "model" | "scene" | "detail";
 const planTypeAliases = {
-  flat_lay: ["flat_lay", "flatlay", "main", "hero", "product", "white_background", "白底主图", "平铺"],
+  product: ["product", "main", "hero", "white_background", "白底主图", "立体主图", "flat_lay", "flatlay", "平铺"],
   model: ["model", "on_model", "model_on", "person", "try_on", "模特", "上身"],
   scene: ["scene", "lifestyle", "environment", "场景"],
   detail: ["detail", "close_up", "closeup", "fabric", "细节"],

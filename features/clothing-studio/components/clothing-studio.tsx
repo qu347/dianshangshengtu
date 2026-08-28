@@ -148,7 +148,7 @@ export function ClothingStudio({ api = defaultApi }: { api?: ClothingStudioApi }
     if (!state.analysis || state.recovered) return;
     if (item.id === "1") {
       const blockedIds = new Set(state.tasks.filter((task) => (
-        task.error === "请先生成或重试白底服装平铺主图"
+        task.error === "请先生成或重试白底立体服装主图"
       )).map((task) => task.planItemId));
       await runGeneration([
         item,
@@ -247,7 +247,7 @@ export function ClothingStudio({ api = defaultApi }: { api?: ClothingStudioApi }
                   }}
                 />
               ) : (
-                <div className="flex min-h-[540px] flex-col items-center justify-center rounded-2xl border border-dashed border-[#d9dce3] bg-[#fafbfc] px-6 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-white text-xl text-[#6d5ce7] shadow-sm">✦</span><h3 className="mt-4 font-semibold">从服装和模特开始</h3><p className="mt-2 max-w-md text-sm leading-6 text-[#7a7f89]">上传 1–6 张服装图并选择固定模特。场景图可选，AI 会先生成纯白平铺主图，再完成整组视觉。</p></div>
+                <div className="flex min-h-[540px] flex-col items-center justify-center rounded-2xl border border-dashed border-[#d9dce3] bg-[#fafbfc] px-6 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-white text-xl text-[#6d5ce7] shadow-sm">✦</span><h3 className="mt-4 font-semibold">从服装和模特开始</h3><p className="mt-2 max-w-md text-sm leading-6 text-[#7a7f89]">上传 1–6 张服装图并选择固定模特。场景图可选，AI 会先生成纯白立体服装主图，再完成整组视觉。</p></div>
               )}
             </div>
           </main>
@@ -258,4 +258,3 @@ export function ClothingStudio({ api = defaultApi }: { api?: ClothingStudioApi }
     </section>
   );
 }
-

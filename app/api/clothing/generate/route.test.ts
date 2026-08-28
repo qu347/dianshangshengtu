@@ -81,6 +81,17 @@ it("keeps image one garment-only and rejects all dependent references", async ()
   expect(submitImageGeneration).not.toHaveBeenCalled();
 });
 
+it("accepts a legacy flat-lay image-one type as the canonical product image", async () => {
+  const response = await POST(request(form({
+    item: { ...firstItem, type: "flat_lay" } as unknown as typeof firstItem,
+  })));
+
+  expect(response.status).toBe(200);
+  expect(submitImageGeneration).toHaveBeenCalledWith(expect.objectContaining({
+    prompt: expect.stringContaining("白底立体服装主图"),
+  }));
+});
+
 it("requires the successful image-one token and model for later images", async () => {
   const noBase = await POST(request(form({ item: secondItem, model: true })));
   expect(noBase.status).toBe(400);

@@ -79,15 +79,21 @@ export function validateReferenceAsset(asset: ReferenceAsset) {
 
 const ConfidenceSchema = z.enum(["observed", "inferred", "user_provided"]);
 
-export const ClothingPlanItemSchema = z.object({
+const CanonicalClothingPlanItemSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(["flat_lay", "model", "scene", "detail"]),
+  type: z.enum(["product", "model", "scene", "detail"]),
   title: z.string().trim().min(1),
   objective: z.string().trim().min(1),
   copy: z.string(),
   scene: z.string().trim().min(1),
   prompt: z.string().trim().min(1),
 }).strict();
+
+export const ClothingPlanItemSchema = z.preprocess((value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const item = value as Record<string, unknown>;
+  return item.type === "flat_lay" ? { ...item, type: "product" } : value;
+}, CanonicalClothingPlanItemSchema);
 export type ClothingPlanItem = z.infer<typeof ClothingPlanItemSchema>;
 
 export const ClothingAnalysisSchema = z.object({

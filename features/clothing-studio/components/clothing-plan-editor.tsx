@@ -13,7 +13,7 @@ type Props = {
 };
 
 const typeLabels = {
-  flat_lay: "白底平铺",
+  product: "白底立体主图",
   model: "模特展示",
   scene: "场景展示",
   detail: "细节特写",
@@ -48,7 +48,7 @@ export function ClothingPlanEditor({ analysis, settings, onChange, onReplan, onC
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className={label}>类型
               <select aria-label={`第 ${index + 1} 张类型`} className={control} disabled={disabled || index === 0} value={item.type} onChange={(event) => updateItem(index, { type: event.currentTarget.value as ClothingPlanItem["type"] })}>
-                <option value="flat_lay">白底平铺</option><option value="model">模特展示</option><option value="scene">场景展示</option><option value="detail">细节特写</option>
+                <option value="product">白底立体主图</option><option value="model">模特展示</option><option value="scene">场景展示</option><option value="detail">细节特写</option>
               </select>
             </label>
             <label className={label}>标题<input className={control} disabled={disabled} value={item.title} onChange={(event) => updateItem(index, { title: event.currentTarget.value })} /></label>
@@ -68,4 +68,3 @@ export function ClothingPlanEditor({ analysis, settings, onChange, onReplan, onC
     </section>
   );
 }
-

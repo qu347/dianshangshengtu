@@ -2,6 +2,7 @@ import {
   ClothingCategorySchema,
   ClothingGenerationSettingsSchema,
   ClothingGenerationTaskSchema,
+  ClothingPlanItemSchema,
   ModelCandidateRequestSchema,
   SceneCandidateRequestSchema,
   validateReferenceAsset,
@@ -46,6 +47,30 @@ it("accepts 1-16 clothing images and enforces platform language", () => {
 
 it("supports only the approved first-version clothing categories", () => {
   expect(ClothingCategorySchema.options).toEqual(["top", "bottom", "dress", "coat", "set"]);
+});
+
+it("supports a dedicated three-dimensional product type for the first clothing image", () => {
+  expect(ClothingPlanItemSchema.parse({
+    id: "1",
+    type: "product",
+    title: "白底立体服装主图",
+    objective: "完整展示服装",
+    copy: "",
+    scene: "纯白背景",
+    prompt: "生成白底立体服装主图",
+  }).type).toBe("product");
+});
+
+it("normalizes the legacy flat-lay plan type to the canonical product type", () => {
+  expect(ClothingPlanItemSchema.parse({
+    id: "1",
+    type: "flat_lay",
+    title: "旧版白底主图",
+    objective: "完整展示服装",
+    copy: "",
+    scene: "纯白背景",
+    prompt: "生成纯白背景立体服装主图，不显示人物",
+  }).type).toBe("product");
 });
 
 it("limits model and scene candidate requests to 1-4 images", () => {

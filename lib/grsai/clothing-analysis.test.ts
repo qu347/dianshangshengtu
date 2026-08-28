@@ -42,7 +42,7 @@ it("labels garment, model, and optional scene references in the multimodal reque
     requirements: "突出垂坠感",
   }, fetchImpl);
 
-  expect(result.plan[0]).toMatchObject({ type: "flat_lay", title: "白底服装平铺主图", copy: "" });
+  expect(result.plan[0]).toMatchObject({ type: "product", title: "白底立体服装主图", copy: "" });
   const request = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body));
   const requestText = JSON.stringify(request);
   expect(requestText).toContain("以下图片为服装参考图");
@@ -114,7 +114,7 @@ it("normalizes recoverable AI formatting differences before strict business vali
     plan: provider.plan.map((item, index) => ({
       ...item,
       id: index + 1,
-      type: index === 0 ? "main" : "on_model",
+      type: index === 0 ? "flat_lay" : "on_model",
       copy: index === 0 ? null : item.copy,
       extraCameraNote: "应忽略",
     })),
@@ -132,7 +132,7 @@ it("normalizes recoverable AI formatting differences before strict business vali
   expect(fetchImpl).toHaveBeenCalledTimes(1);
   expect(result.category).toBe("top");
   expect(result.plan).toMatchObject([
-    { id: "1", type: "flat_lay", copy: "" },
+    { id: "1", type: "product", copy: "" },
     { id: "2", type: "model" },
   ]);
 });
@@ -159,6 +159,9 @@ it("requests an exact Chinese plan and supported clothing categories", () => {
   expect(prompt).toContain("恰好 4 个规划项");
   expect(prompt).toContain("top、bottom、dress、coat、set");
   expect(prompt).toContain("标题、画面目标、场景和生图提示词必须使用中文");
-  expect(prompt).toContain("第 1 项必须是纯白背景的服装平铺主图");
+  expect(prompt).toContain("plan.type 只能是 product、model、scene、detail");
+  expect(prompt).toContain("第 1 项必须是纯白背景的立体服装主图");
+  expect(prompt).toContain("隐形模特式立体成衣轮廓");
+  expect(prompt).toContain("不显示人物、皮肤或实体模特");
   expect(prompt).toContain("统一风格的简洁场景");
 });
