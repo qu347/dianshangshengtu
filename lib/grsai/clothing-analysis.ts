@@ -1,5 +1,6 @@
 import {
   ClothingAnalysisSchema,
+  type ClothingCategory,
   type ClothingGenerationSettings,
 } from "@/features/clothing-studio/model";
 import {
@@ -76,27 +77,88 @@ function normalizeConfidence(value: unknown) {
     : "inferred";
 }
 
+const categoryAliases = {
+  top: ["top", "tops", "shirt", "blouse", "t_shirt", "sweater", "hoodie", "上衣", "衬衫", "t恤"],
+  bottom: ["bottom", "bottoms", "pants", "trousers", "jeans", "skirt", "shorts", "下装", "裤子", "裤装", "半身裙"],
+  dress: ["dress", "gown", "one_piece", "连衣裙"],
+  coat: ["coat", "jacket", "blazer", "outerwear", "外套", "大衣", "夹克"],
+  set: ["set", "suit", "two_piece", "套装"],
+} satisfies Record<ClothingCategory, readonly string[]>;
+
+type PlanType = "flat_lay" | "model" | "scene" | "detail";
+const planTypeAliases = {
+  flat_lay: ["flat_lay", "flatlay", "main", "hero", "product", "white_background", "白底主图", "平铺"],
+  model: ["model", "on_model", "model_on", "person", "try_on", "模特", "上身"],
+  scene: ["scene", "lifestyle", "environment", "场景"],
+  detail: ["detail", "close_up", "closeup", "fabric", "细节"],
+} satisfies Record<PlanType, readonly string[]>;
+
+function normalizeAlias<T extends string>(value: unknown, aliases: Record<T, readonly string[]>) {
+  if (typeof value !== "string") return value;
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return (Object.entries(aliases) as Array<[T, readonly string[]]>)
+    .find(([, values]) => values.includes(normalized))?.[0] ?? value;
+}
+
 function normalizeProviderAnalysis(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const record = value as Record<string, unknown>;
-  const normalizeFacts = (items: unknown) => Array.isArray(items)
-    ? items.map((item) => item && typeof item === "object" && !Array.isArray(item)
-      ? { ...item, confidence: normalizeConfidence((item as Record<string, unknown>).confidence) }
-      : item)
-    : items;
+  const normalizeFacts = (items: unknown) => Array.isArray(items) ? items.map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    const fact = item as Record<string, unknown>;
+    return { value: fact.value, confidence: normalizeConfidence(fact.confidence) };
+  }) : items;
+  const normalizeSellingPoints = (items: unknown) => Array.isArray(items) ? items.map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    const point = item as Record<string, unknown>;
+    return {
+      title: point.title,
+      evidence: point.evidence,
+      confidence: normalizeConfidence(point.confidence),
+    };
+  }) : items;
+  const normalizePlan = (items: unknown) => Array.isArray(items) ? items.map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    const planItem = item as Record<string, unknown>;
+    return {
+      id: typeof planItem.id === "number" ? String(planItem.id) : planItem.id,
+      type: normalizeAlias(planItem.type, planTypeAliases),
+      title: planItem.title,
+      objective: planItem.objective,
+      copy: typeof planItem.copy === "string" ? planItem.copy : "",
+      scene: planItem.scene,
+      prompt: planItem.prompt,
+    };
+  }) : items;
   return {
-    ...record,
+    category: normalizeAlias(record.category, categoryAliases),
+    productName: record.productName,
     visualFacts: normalizeFacts(record.visualFacts),
-    sellingPoints: normalizeFacts(record.sellingPoints),
+    audience: record.audience,
+    sellingPoints: normalizeSellingPoints(record.sellingPoints),
+    visualDirection: record.visualDirection,
+    plan: normalizePlan(record.plan),
   };
+}
+
+function parseJsonContent(content: string) {
+  const trimmed = content.trim();
+  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  try {
+    return JSON.parse(unfenced);
+  } catch {
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+    if (start < 0 || end <= start) throw new Error("AI response did not contain a JSON object");
+    return JSON.parse(trimmed.slice(start, end + 1));
+  }
 }
 
 function parseAnalysisContent(
   content: string,
   settings: ClothingGenerationSettings,
 ) {
-  const unfenced = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  const parsed = ClothingAnalysisSchema.parse(normalizeProviderAnalysis(JSON.parse(unfenced)));
+  const parsed = ClothingAnalysisSchema.parse(normalizeProviderAnalysis(parseJsonContent(content)));
   if (parsed.plan.length !== settings.imageCount) {
     throw new Error(`规划数量应为 ${settings.imageCount}，实际为 ${parsed.plan.length}`);
   }

@@ -103,6 +103,40 @@ it.each([400, 502])("falls back to the stable vision model after upstream HTTP %
   expect(JSON.parse(String(fetchImpl.mock.calls[1][1]?.body)).model).toBe("gemini-2.5-flash");
 });
 
+it("normalizes recoverable AI formatting differences before strict business validation", async () => {
+  const provider = validProviderAnalysis();
+  const recoverable = {
+    ...provider,
+    category: "上衣",
+    extraExplanation: "应忽略",
+    visualFacts: provider.visualFacts.map((item) => ({ ...item, source: "image" })),
+    sellingPoints: provider.sellingPoints.map((item) => ({ ...item, rank: 1 })),
+    plan: provider.plan.map((item, index) => ({
+      ...item,
+      id: index + 1,
+      type: index === 0 ? "main" : "on_model",
+      copy: index === 0 ? null : item.copy,
+      extraCameraNote: "应忽略",
+    })),
+  };
+  const wrapped = `分析完成：\n\`\`\`json\n${JSON.stringify(recoverable)}\n\`\`\`\n以上为规划。`;
+  const fetchImpl = vi.fn<typeof fetch>(async () => chatResponse(wrapped));
+
+  const result = await analyzeClothing({
+    garments: ["data:image/webp;base64,Z2FybWVudA=="],
+    model: "data:image/webp;base64,bW9kZWw=",
+    settings: defaultClothingSettings,
+    requirements: "",
+  }, fetchImpl);
+
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  expect(result.category).toBe("top");
+  expect(result.plan).toMatchObject([
+    { id: "1", type: "flat_lay", copy: "" },
+    { id: "2", type: "model" },
+  ]);
+});
+
 it("returns a retryable format error after two invalid responses", async () => {
   const fetchImpl = vi.fn<typeof fetch>(async () => chatResponse("still-not-json"));
 
