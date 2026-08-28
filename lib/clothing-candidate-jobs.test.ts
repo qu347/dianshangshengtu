@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { verifyDownloadToken, verifyJobToken } from "./download-token";
+import { GrsaiError } from "./grsai/errors";
 import { submitImageGeneration } from "./grsai/images";
 import { submitCandidateBatch } from "./clothing-candidate-jobs";
 
@@ -39,6 +40,7 @@ it("submits every candidate independently and keeps opaque running jobs", async 
     prompt: "模特变化 1",
     aspectRatio: "1090x1443",
     quality: "auto",
+    timeoutMs: 600_000,
   });
   expect(tasks).toHaveLength(3);
   expect(tasks.every((task) => task.status === "running")).toBe(true);
@@ -99,3 +101,23 @@ it("preserves successful slots when one provider submission rejects", async () =
   ]);
 });
 
+it("keeps normalized Grsai submission errors visible for retry decisions", async () => {
+  vi.mocked(submitImageGeneration).mockRejectedValue(
+    new GrsaiError("timeout", "Grsai 请求超时，请重试", 504),
+  );
+
+  const [task] = await submitCandidateBatch({
+    kind: "model",
+    count: 1,
+    promptForIndex: () => "模特",
+    aspectRatio: "1090x1443",
+    quality: "auto",
+    requestUrl: "http://localhost/api/clothing/model-candidates",
+  });
+
+  expect(task).toMatchObject({
+    status: "failed",
+    progress: 0,
+    error: "Grsai 请求超时，请重试",
+  });
+});

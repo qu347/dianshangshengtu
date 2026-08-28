@@ -65,3 +65,24 @@ it("keeps an individually failed AI candidate retryable", async () => {
   await user.click(screen.getByRole("button", { name: "重试此候选" }));
   expect(api.submitCandidates).toHaveBeenCalledTimes(2);
 });
+
+it("opens a candidate in a large preview on double click and closes it with Escape", async () => {
+  const user = userEvent.setup();
+  const onClose = vi.fn();
+  const generated = {
+    id: "model-preview",
+    kind: "model" as const,
+    source: "generated" as const,
+    previewUrl: "/model-preview.png",
+    downloadToken: "token",
+  };
+  render(<ReferencePickerDialog kind="model" open candidates={[generated]} onClose={onClose} onUse={vi.fn()} api={api} />);
+
+  await user.dblClick(screen.getByRole("button", { name: "选择模特候选 model-preview" }));
+  expect(screen.getByRole("dialog", { name: "模特候选大图" })).toBeVisible();
+  expect(screen.getByRole("img", { name: "模特候选大图" })).toHaveAttribute("src", "/model-preview.png");
+
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog", { name: "模特候选大图" })).not.toBeInTheDocument();
+  expect(onClose).not.toHaveBeenCalled();
+});

@@ -8,6 +8,7 @@ type SubmitImageInput = {
   prompt: string;
   aspectRatio: GenerationSettings["aspectRatio"];
   quality: GenerationSettings["quality"];
+  timeoutMs?: number;
 };
 
 type ProviderImageResponse = {
@@ -94,7 +95,7 @@ export async function submitImageGeneration(input: SubmitImageInput, fetchImpl: 
     "/v1/api/generate",
     {
       method: "POST",
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(input.timeoutMs ?? 180_000),
       body: JSON.stringify({
         model: "gpt-image-2",
         prompt: input.prompt,

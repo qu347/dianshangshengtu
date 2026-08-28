@@ -1,5 +1,6 @@
 import type { ClothingGenerationSettings, ClothingGenerationTask } from "@/features/clothing-studio/model";
 import { signDownloadUrl, signJobToken } from "./download-token";
+import { GrsaiError } from "./grsai/errors";
 import { submitImageGeneration } from "./grsai/images";
 import type { ImageRenderConfig } from "./image-render-config";
 
@@ -38,6 +39,7 @@ export async function submitCandidateBatch(input: SubmitCandidateBatchInput) {
     prompt: input.promptForIndex(index),
     aspectRatio: input.aspectRatio,
     quality: input.quality,
+    timeoutMs: 600_000,
   })));
 
   return settled.map((result, index): ClothingGenerationTask => {
@@ -47,7 +49,9 @@ export async function submitCandidateBatch(input: SubmitCandidateBatchInput) {
         planItemId,
         status: "failed",
         progress: 0,
-        error: "参考图生成提交失败，请重试",
+        error: result.reason instanceof GrsaiError
+          ? result.reason.message
+          : "参考图生成提交失败，请重试",
       };
     }
 
@@ -81,4 +85,3 @@ export async function submitCandidateBatch(input: SubmitCandidateBatchInput) {
     };
   });
 }
-

@@ -53,17 +53,23 @@ export function ReferencePickerDialog({ kind, open, candidates, onClose, onUse, 
   const [tasks, setTasks] = useState<ClothingGenerationTask[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewAsset, setPreviewAsset] = useState<ReferenceAsset | null>(null);
   const objectUrls = useRef<string[]>([]);
   const name = kind === "model" ? "模特" : "场景";
 
   useEffect(() => {
     if (!open) return;
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (previewAsset) {
+        setPreviewAsset(null);
+        return;
+      }
+      onClose();
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose, open]);
+  }, [onClose, open, previewAsset]);
 
   useEffect(() => () => {
     objectUrls.current.forEach((url) => URL.revokeObjectURL(url));
@@ -176,7 +182,7 @@ export function ReferencePickerDialog({ kind, open, candidates, onClose, onUse, 
           <div className="space-y-3 p-4">
             {tab === "upload" && <label className="block rounded-xl border border-dashed border-[#cfd3dc] p-4 text-center text-sm"><input className="sr-only" aria-label={`上传${name}候选图`} type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void upload(event.currentTarget.files?.[0])} />选择本地{name}图</label>}
             {history.map((asset) => (
-              <button key={asset.id} type="button" aria-label={`选择${name}候选 ${asset.file?.name ?? asset.id}`} aria-pressed={selectedId === asset.id} onClick={() => setSelectedId(asset.id)} className="flex w-full items-center gap-3 rounded-xl border border-[#e1e3e8] p-2 text-left aria-pressed:border-[#6d5ce7] aria-pressed:ring-2 aria-pressed:ring-[#ded9ff]">
+              <button key={asset.id} type="button" aria-label={`选择${name}候选 ${asset.file?.name ?? asset.id}`} aria-pressed={selectedId === asset.id} title="双击查看大图" onClick={() => setSelectedId(asset.id)} onDoubleClick={() => setPreviewAsset(asset)} className="flex w-full items-center gap-3 rounded-xl border border-[#e1e3e8] p-2 text-left aria-pressed:border-[#6d5ce7] aria-pressed:ring-2 aria-pressed:ring-[#ded9ff]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={asset.previewUrl} alt="" className="size-16 rounded-lg bg-[#f2f3f5] object-cover" />
                 <span className="min-w-0 text-xs text-[#666b75]">{asset.source === "upload" ? asset.file?.name : `AI 候选 · ${asset.id.slice(-6)}`}</span>
@@ -195,6 +201,15 @@ export function ReferencePickerDialog({ kind, open, candidates, onClose, onUse, 
         <button type="button" onClick={onClose} className="rounded-xl px-5 py-2.5 text-sm text-[#666b75]">取消</button>
         <button type="button" disabled={!selected} onClick={() => selected && onUse(selected)} className="rounded-xl bg-[#17191d] px-5 py-2.5 text-sm font-semibold text-white disabled:bg-[#b8bbc2]">使用选中的{name}</button>
       </footer>
+      {previewAsset && (
+        <div role="dialog" aria-modal="true" aria-label={`${name}候选大图`} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-5" onMouseDown={(event) => event.target === event.currentTarget && setPreviewAsset(null)}>
+          <div className="relative max-h-[92vh] max-w-[92vw] rounded-2xl bg-white p-3 shadow-2xl">
+            <button type="button" aria-label="关闭大图" onClick={() => setPreviewAsset(null)} className="absolute right-3 top-3 z-10 flex size-9 items-center justify-center rounded-full bg-black/70 text-xl text-white">×</button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewAsset.previewUrl} alt={`${name}候选大图`} className="max-h-[86vh] max-w-[86vw] rounded-xl object-contain" />
+          </div>
+        </div>
+      )}
     </dialog>
   );
 }
