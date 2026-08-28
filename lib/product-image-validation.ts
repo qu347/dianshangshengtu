@@ -6,17 +6,98 @@ const BACKGROUND_BAND_RATIO = 0.08;
 const REQUIRED_WHITE_RATIO = 0.995;
 const NEAR_WHITE_MIN_CHANNEL = 225;
 const NEAR_WHITE_MAX_SPREAD = 18;
+const APPAREL_MIN_CHANNEL = 205;
+const APPAREL_MAX_SPREAD = 12;
+const APPAREL_BACKGROUND_DELTA = 6;
+const APPAREL_ROUGH_STEP = 8;
+const APPAREL_MAX_ROUGH_RATIO = 0.02;
 
 export type WhiteBackgroundOptions = {
-  minimumChannel?: number;
+  mode?: "apparel";
 };
 
-function isNearWhite(data: Buffer, offset: number, minimumChannel: number) {
+function isNearWhite(
+  data: Buffer,
+  offset: number,
+  minimumChannel: number,
+  maximumSpread = NEAR_WHITE_MAX_SPREAD,
+) {
   const red = data[offset];
   const green = data[offset + 1];
   const blue = data[offset + 2];
   return Math.min(red, green, blue) >= minimumChannel
-    && Math.max(red, green, blue) - Math.min(red, green, blue) <= NEAR_WHITE_MAX_SPREAD;
+    && Math.max(red, green, blue) - Math.min(red, green, blue) <= maximumSpread;
+}
+
+function maximumChannelDelta(data: Buffer, firstOffset: number, secondOffset: number) {
+  return Math.max(
+    Math.abs(data[firstOffset] - data[secondOffset]),
+    Math.abs(data[firstOffset + 1] - data[secondOffset + 1]),
+    Math.abs(data[firstOffset + 2] - data[secondOffset + 2]),
+  );
+}
+
+function isInOuterBand(x: number, y: number, width: number, height: number) {
+  const horizontalBand = Math.max(1, Math.round(width * BACKGROUND_BAND_RATIO));
+  const verticalBand = Math.max(1, Math.round(height * BACKGROUND_BAND_RATIO));
+  return x < horizontalBand
+    || x >= width - horizontalBand
+    || y < verticalBand
+    || y >= height - verticalBand;
+}
+
+function hasSmoothApparelOuterBand(
+  data: Buffer,
+  width: number,
+  height: number,
+  channels: number,
+) {
+  let compared = 0;
+  let rough = 0;
+  const compare = (first: number, second: number) => {
+    compared += 1;
+    if (maximumChannelDelta(data, first * channels, second * channels) > APPAREL_ROUGH_STEP) {
+      rough += 1;
+    }
+  };
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (!isInOuterBand(x, y, width, height)) continue;
+      const index = y * width + x;
+      if (x + 1 < width && isInOuterBand(x + 1, y, width, height)) compare(index, index + 1);
+      if (y + 1 < height && isInOuterBand(x, y + 1, width, height)) compare(index, index + width);
+    }
+  }
+  return compared > 0 && rough / compared <= APPAREL_MAX_ROUGH_RATIO;
+}
+
+function isApparelBackgroundPixel(
+  data: Buffer,
+  width: number,
+  channels: number,
+  x: number,
+  y: number,
+) {
+  const offset = (y * width + x) * channels;
+  if (!isNearWhite(data, offset, APPAREL_MIN_CHANNEL, APPAREL_MAX_SPREAD)) return false;
+
+  const leftOffset = y * width * channels;
+  const rightOffset = (y * width + width - 1) * channels;
+  if (
+    !isNearWhite(data, leftOffset, APPAREL_MIN_CHANNEL, APPAREL_MAX_SPREAD)
+    || !isNearWhite(data, rightOffset, APPAREL_MIN_CHANNEL, APPAREL_MAX_SPREAD)
+  ) {
+    return false;
+  }
+
+  const ratio = width > 1 ? x / (width - 1) : 0;
+  for (let channel = 0; channel < 3; channel += 1) {
+    const expected = data[leftOffset + channel]
+      + (data[rightOffset + channel] - data[leftOffset + channel]) * ratio;
+    if (Math.abs(data[offset + channel] - expected) > APPAREL_BACKGROUND_DELTA) return false;
+  }
+  return true;
 }
 
 function pureWhiteOuterBandRatio(
@@ -75,9 +156,22 @@ export async function normalizeWhiteBackground(
   const queue = new Int32Array(pixelCount);
   let head = 0;
   let tail = 0;
-  const minimumChannel = options.minimumChannel ?? NEAR_WHITE_MIN_CHANNEL;
+  const apparelMode = options.mode === "apparel";
+  const classificationData = apparelMode ? Buffer.from(data) : data;
+  if (
+    apparelMode
+    && !hasSmoothApparelOuterBand(classificationData, info.width, info.height, info.channels)
+  ) {
+    throw new Error("白底背景处理失败");
+  }
   const enqueue = (index: number) => {
-    if (visited[index] || !isNearWhite(data, index * info.channels, minimumChannel)) return;
+    if (visited[index]) return;
+    const x = index % info.width;
+    const y = Math.floor(index / info.width);
+    const isBackground = apparelMode
+      ? isApparelBackgroundPixel(classificationData, info.width, info.channels, x, y)
+      : isNearWhite(data, index * info.channels, NEAR_WHITE_MIN_CHANNEL);
+    if (!isBackground) return;
     visited[index] = 1;
     queue[tail] = index;
     tail += 1;

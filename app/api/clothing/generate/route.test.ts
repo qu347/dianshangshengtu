@@ -102,7 +102,7 @@ it("submits later images in normalized-main, garments, model, optional-scene ord
   expect(fetchPublicImage).toHaveBeenCalledWith("https://cdn.example/main.png");
   expect(normalizeWhiteBackground).toHaveBeenCalledWith(
     Buffer.from("main-source"),
-    { minimumChannel: 205 },
+    { mode: "apparel" },
   );
   expect(submitImageGeneration).toHaveBeenCalledWith({
     images: [

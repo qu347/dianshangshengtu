@@ -55,6 +55,22 @@ describe("render-context tokens", () => {
     });
   });
 
+  it("round-trips apparel mode only for image one", () => {
+    const apparel: ImageRenderConfig = {
+      imageIndex: 1,
+      annotations: [],
+      watermark: "",
+      applyWatermark: false,
+      whiteBackgroundMode: "apparel",
+    };
+
+    const token = signDownloadUrl("https://cdn.example/apparel.png", apparel, "secret", 100, 60);
+    expect(verifyDownloadToken(token, "secret", 120)).toEqual({
+      url: "https://cdn.example/apparel.png",
+      render: apparel,
+    });
+  });
+
   it("rejects a render-context mutation", () => {
     const token = signJobToken("provider-job", render, "secret", 100, 60);
     const [payload, signature] = token.split(".");
@@ -183,6 +199,8 @@ describe("render-context tokens", () => {
       { ...render, watermark: "x".repeat(41) },
       { ...render, watermark: false },
       { ...render, applyWatermark: "yes" },
+      { ...render, whiteBackgroundMode: "apparel" },
+      { ...render, imageIndex: 1, annotations: [], dimensionLayout: undefined, whiteBackgroundMode: "unknown" },
     ];
 
     for (const invalidRender of invalidRenders) {

@@ -15,7 +15,7 @@ export type ImageRenderConfig = {
 export function whiteBackgroundOptionsFor(
   render: ImageRenderConfig,
 ): WhiteBackgroundOptions | undefined {
-  return render.whiteBackgroundMode === "apparel" ? { minimumChannel: 205 } : undefined;
+  return render.whiteBackgroundMode === "apparel" ? { mode: "apparel" } : undefined;
 }
 
 function imageIndexFromId(id: string) {

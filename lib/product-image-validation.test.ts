@@ -14,6 +14,9 @@ let compliant: Buffer;
 let noncompliant: Buffer;
 let safelyNormalizable: Buffer;
 let lightNeutralGradient: Buffer;
+let lightGarment: Buffer;
+let paleColoredBackground: Buffer;
+let neutralTexture: Buffer;
 
 beforeAll(async () => {
   compliant = await sharp({
@@ -55,6 +58,31 @@ beforeAll(async () => {
       <rect x="90" y="90" width="120" height="220" fill="#505050" />
     </svg>
   `)).png().toBuffer();
+  lightGarment = await sharp({
+    create: { width: 300, height: 400, channels: 3, background: "#d8d8d8" },
+  }).composite([{
+    input: await sharp({
+      create: { width: 120, height: 220, channels: 3, background: "#d0d0d0" },
+    }).png().toBuffer(),
+    left: 90,
+    top: 90,
+  }]).png().toBuffer();
+  paleColoredBackground = await sharp({
+    create: { width: 300, height: 400, channels: 3, background: "#d4e6d4" },
+  }).png().toBuffer();
+  neutralTexture = await sharp(Buffer.from(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="300" height="400">
+      <defs>
+        <pattern id="checker" width="16" height="16" patternUnits="userSpaceOnUse">
+          <rect width="8" height="8" fill="#d8d8d8" />
+          <rect x="8" width="8" height="8" fill="#f0f0f0" />
+          <rect y="8" width="8" height="8" fill="#f0f0f0" />
+          <rect x="8" y="8" width="8" height="8" fill="#d8d8d8" />
+        </pattern>
+      </defs>
+      <rect width="300" height="400" fill="url(#checker)" />
+    </svg>
+  `)).png().toBuffer();
 });
 
 async function pixelAt(image: Buffer, left: number, top: number) {
@@ -87,11 +115,26 @@ describe("white-background validation", () => {
   it("normalizes a light neutral gradient only when apparel tolerance is requested", async () => {
     await expect(normalizeWhiteBackground(lightNeutralGradient)).rejects.toThrow("白底背景处理失败");
 
-    const normalized = await normalizeWhiteBackground(lightNeutralGradient, { minimumChannel: 205 });
+    const normalized = await normalizeWhiteBackground(lightNeutralGradient, { mode: "apparel" });
 
     await expect(hasPureWhiteOuterBand(normalized)).resolves.toBe(true);
     await expect(pixelAt(normalized, 10, 10)).resolves.toEqual([255, 255, 255]);
     await expect(pixelAt(normalized, 150, 190)).resolves.toEqual([80, 80, 80]);
+  });
+
+  it("keeps a light neutral garment distinct from an apparel background", async () => {
+    const normalized = await normalizeWhiteBackground(lightGarment, { mode: "apparel" });
+
+    await expect(pixelAt(normalized, 10, 10)).resolves.toEqual([255, 255, 255]);
+    await expect(pixelAt(normalized, 150, 190)).resolves.toEqual([208, 208, 208]);
+  });
+
+  it.each([
+    ["pale colored", () => paleColoredBackground],
+    ["neutral textured", () => neutralTexture],
+  ])("rejects a %s apparel background", async (_label, source) => {
+    await expect(normalizeWhiteBackground(source(), { mode: "apparel" }))
+      .rejects.toThrow("白底背景处理失败");
   });
 
   it("rejects a non-white textured-color background instead of erasing it", async () => {

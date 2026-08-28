@@ -66,6 +66,12 @@ function isImageRenderConfig(value: unknown): value is ImageRenderConfig {
   ) {
     return false;
   }
+  if (
+    value.whiteBackgroundMode !== undefined
+    && (value.imageIndex !== 1 || value.whiteBackgroundMode !== "apparel")
+  ) {
+    return false;
+  }
 
   const annotationsValid = value.annotations.every((annotation) => isRecord(annotation)
     && isBoundedId(annotation.id)
