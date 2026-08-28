@@ -38,7 +38,13 @@ export function AppShell({ active, children }: {
             >
               商品介绍视频
             </Link>
-            <span className="shrink-0 rounded-lg px-3.5 py-2 text-sm text-[#9a9ea7]">服装组图</span>
+            <Link
+              href="/clothing-studio"
+              aria-current={active === "clothing-studio" ? "page" : undefined}
+              className={active === "clothing-studio" ? "shrink-0 rounded-lg bg-[#17191d] px-3.5 py-2 text-sm text-white shadow-sm" : "shrink-0 rounded-lg px-3.5 py-2 text-sm text-[#626773]"}
+            >
+              服装组图
+            </Link>
           </nav>
           <span className="ml-auto inline-flex items-center gap-2 rounded-full bg-[#f4f5f7] px-3 py-2 text-xs text-[#5f646e]">
             <span aria-hidden="true" className="size-2 rounded-full bg-emerald-500" />

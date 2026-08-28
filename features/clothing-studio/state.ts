@@ -70,7 +70,7 @@ function invalidate(state: ClothingStudioState, patch: Partial<ClothingStudioSta
     phase: "input" as const,
     analysis: null,
     tasks: [],
-    notice: state.analysis ? "输入已变化，请重新分析服装" : null,
+    notice: state.analysis ? "输入已变化，请重新分析服装" : state.notice,
     recovered: false,
   };
 }
