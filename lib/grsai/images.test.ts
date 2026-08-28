@@ -31,6 +31,25 @@ it("keeps image 2 free of AI-generated dimension text for the server overlay", (
   expect(prompt).not.toContain("服务器将在右侧叠加尺寸标注");
 });
 
+it("uses the AI-planned prompt for ordinary image two when dimensions are disabled", () => {
+  const item = {
+    ...makePlanItems(2)[1],
+    scene: "自然光居家桌面",
+    prompt: "展示商品在日常使用场景中的质感。",
+    annotations: [],
+  };
+  const prompt = buildGenerationPrompt(item, {
+    ...defaultSettings,
+    generateDimensionImage: false,
+  });
+
+  expect(prompt).toContain("自然光居家桌面");
+  expect(prompt).toContain("展示商品在日常使用场景中的质感");
+  expect(prompt).not.toContain("以第一张参考图中的商品为准");
+  expect(prompt).not.toContain("3/4 立体视角");
+  expect(prompt).not.toContain("不得生成文字或尺寸图形");
+});
+
 it("submits gpt-image-2 with reference images and JSON reply mode", async () => {
   const fetchImpl = vi.fn().mockResolvedValue(
     new Response(JSON.stringify({ id: "job-1", status: "running" }), { status: 200 }),

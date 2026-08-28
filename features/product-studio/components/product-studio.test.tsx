@@ -65,6 +65,54 @@ it("renders the product studio as a configuration and creation workspace", () =>
   expect(screen.getByRole("heading", { name: "创作工作台" })).toBeInTheDocument();
 });
 
+it("defaults dimension-image generation on and preserves entered dimensions when toggled", async () => {
+  const user = userEvent.setup();
+  render(<ProductStudio api={{ analyze: vi.fn().mockResolvedValue(analysisWithTwoItems), ...unusedGenerationApi }} />);
+
+  const toggle = screen.getByRole("checkbox", { name: "生成尺寸标注图" });
+  expect(toggle).toBeChecked();
+  await user.type(screen.getByLabelText("尺寸名称 1"), "杯高");
+  await user.type(screen.getByLabelText("尺寸数值 1"), "12");
+
+  await user.click(toggle);
+  expect(screen.queryByLabelText("尺寸名称 1")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("尺寸数值 1")).not.toBeInTheDocument();
+
+  await user.click(toggle);
+  expect(screen.getByLabelText("尺寸名称 1")).toHaveValue("杯高");
+  expect(screen.getByLabelText("尺寸数值 1")).toHaveValue(12);
+});
+
+it("analyzes two ordinary product images without dimension data when the option is off", async () => {
+  const ordinaryAnalysis = {
+    ...analysisWithTwoItems,
+    plan: [
+      analysisWithTwoItems.plan[0],
+      {
+        ...analysisWithTwoItems.plan[1],
+        title: "商品细节图",
+        objective: "展示商品外观细节",
+        scene: "简洁的商品展示场景",
+        prompt: "生成突出商品外观细节的电商展示图。",
+        annotations: [],
+      },
+    ],
+  };
+  const analyze = vi.fn().mockResolvedValue(ordinaryAnalysis);
+  const user = userEvent.setup();
+  render(<ProductStudio api={{ analyze, ...unusedGenerationApi }} />);
+
+  await user.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
+  await user.selectOptions(screen.getByLabelText("生成数量"), "2");
+  await user.click(screen.getByRole("checkbox", { name: "生成尺寸标注图" }));
+  await user.click(screen.getByRole("button", { name: "开始分析产品" }));
+
+  await waitFor(() => expect(analyze).toHaveBeenCalledWith(expect.objectContaining({
+    dimensions: [],
+    settings: expect.objectContaining({ generateDimensionImage: false }),
+  })));
+});
+
 it("uploads a product and shows the analysis", async () => {
   const analyze = vi.fn().mockResolvedValue(analysisWithTwoItems);
   render(<ProductStudio api={{ analyze, ...unusedGenerationApi }} />);
@@ -195,6 +243,63 @@ it("keeps successful images and retries only the failed plan item", async () => 
     item: analysisWithTwoItems.plan[1],
     baseImageToken: "token-job-1",
   }));
+});
+
+it("retries an ordinary image two without depending on image one", async () => {
+  const ordinarySecond = {
+    ...analysisWithTwoItems.plan[1],
+    title: "商品细节图",
+    objective: "展示商品外观细节",
+    copy: "",
+    scene: "自然光商品展示场景",
+    prompt: "生成突出商品外观细节的普通展示图。",
+    annotations: [],
+  };
+  const ordinaryAnalysis = {
+    ...analysisWithTwoItems,
+    plan: [analysisWithTwoItems.plan[0], ordinarySecond],
+  };
+  let secondAttempt = 0;
+  const submit = vi.fn(async ({ item }: { item: PlanItem; baseImageToken?: string }) => {
+    if (item.id === "1") {
+      return {
+        planItemId: item.id,
+        status: "succeeded" as const,
+        progress: 100,
+        resultUrl: "https://cdn.example/1.png",
+        downloadToken: "token-1",
+      };
+    }
+    secondAttempt += 1;
+    return secondAttempt === 1
+      ? { planItemId: item.id, status: "failed" as const, progress: 0, error: "上游生成失败" }
+      : {
+        planItemId: item.id,
+        status: "succeeded" as const,
+        progress: 100,
+        resultUrl: "https://cdn.example/2.png",
+        downloadToken: "token-2",
+      };
+  });
+  render(<ProductStudio api={{
+    analyze: vi.fn().mockResolvedValue(ordinaryAnalysis),
+    submit,
+    status: vi.fn(),
+  }} />);
+
+  await userEvent.upload(screen.getByLabelText("上传产品图"), new File(["x"], "cup.png", { type: "image/png" }));
+  await userEvent.selectOptions(screen.getByLabelText("生成数量"), "2");
+  await userEvent.click(screen.getByRole("checkbox", { name: "生成尺寸标注图" }));
+  await userEvent.click(screen.getByRole("button", { name: "开始分析产品" }));
+  await userEvent.click(await screen.findByRole("button", { name: "确认规划并生成" }));
+  await userEvent.click(await screen.findByRole("button", { name: "重试此图" }));
+
+  await screen.findByRole("img", { name: "生成结果：商品细节图" });
+  const secondCalls = submit.mock.calls
+    .map(([call]) => call)
+    .filter((call) => call.item.id === "2");
+  expect(secondCalls).toHaveLength(2);
+  expect(secondCalls.every((call) => !("baseImageToken" in call))).toBe(true);
 });
 
 it("continues a timed-out job without submitting it again", async () => {

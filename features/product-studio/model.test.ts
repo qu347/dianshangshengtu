@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DimensionItemsSchema, GenerationSettingsSchema, GenerationTaskSchema, ProductAnalysisSchema, assertPlanCount } from "./model";
 
-const settings = { platform: "taobao", language: "zh-CN", aspectRatio: "1024x1536", imageCount: 4, quality: "auto", watermark: "" };
+const settings = { platform: "taobao", language: "zh-CN", aspectRatio: "1024x1536", imageCount: 4, quality: "auto", watermark: "", generateDimensionImage: true };
 const ozonSettings = {
   platform: "ozon",
   language: "ru",
@@ -9,6 +9,7 @@ const ozonSettings = {
   imageCount: 2,
   quality: "auto",
   watermark: "My Shop",
+  generateDimensionImage: true,
 };
 
 describe("domain schemas", () => {
@@ -23,6 +24,10 @@ describe("domain schemas", () => {
   it("requires dimensions for a multi-image request", () => {
     expect(() => DimensionItemsSchema(2).parse([])).toThrow("至少填写 1 个产品尺寸");
     expect(DimensionItemsSchema(1).parse([])).toEqual([]);
+  });
+
+  it("allows a multi-image request without dimensions when the dimension image is disabled", () => {
+    expect(DimensionItemsSchema(2, false).parse([])).toEqual([]);
   });
 
   it("accepts 1 through 16 images and rejects values outside the range", () => {

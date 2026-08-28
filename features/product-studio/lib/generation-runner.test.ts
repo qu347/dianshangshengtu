@@ -102,6 +102,51 @@ it("waits for image one and passes its signed token only to image two", async ()
   expect(thirdCall).not.toHaveProperty("baseImageToken");
 });
 
+it("runs image two independently and without an image-one token when dimensions are disabled", async () => {
+  const [first, second] = makePlanItems(2);
+  let resolveFirst!: (task: GenerationTask) => void;
+  const firstSubmission = new Promise<GenerationTask>((resolve) => { resolveFirst = resolve; });
+  const api = {
+    submit: vi.fn(({ item }: { item: PlanItem; baseImageToken?: string }) => (
+      item.id === first.id
+        ? firstSubmission
+        : Promise.resolve({
+          planItemId: item.id,
+          status: "succeeded" as const,
+          progress: 100,
+          resultUrl: `https://cdn/${item.id}.png`,
+          downloadToken: `token-${item.id}`,
+        })
+    )),
+    status: vi.fn(),
+  };
+
+  const batch = runGenerationBatch({
+    items: [first, { ...second, annotations: [] }],
+    files: [file],
+    settings: { ...defaultSettings, imageCount: 2, generateDimensionImage: false },
+    api,
+    onTaskChange: vi.fn(),
+  });
+
+  await Promise.resolve();
+  expect(api.submit).toHaveBeenCalledTimes(2);
+  const secondCall = api.submit.mock.calls.find(([call]) => call.item.id === second.id)?.[0];
+  expect(secondCall).not.toHaveProperty("baseImageToken");
+
+  resolveFirst({
+    planItemId: first.id,
+    status: "failed",
+    progress: 0,
+    error: "白底生成失败",
+  });
+  const tasks = await batch;
+  expect(tasks).toEqual(expect.arrayContaining([
+    expect.objectContaining({ planItemId: first.id, status: "failed" }),
+    expect.objectContaining({ planItemId: second.id, status: "succeeded" }),
+  ]));
+});
+
 it("blocks image two when image one fails but still generates later images", async () => {
   const [first, second, third] = makePlanItems(3);
   const changes: GenerationTask[] = [];

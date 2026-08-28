@@ -31,6 +31,7 @@ type PromptInput = {
   imageCount: number;
   platform: GenerationSettings["platform"];
   language: GenerationSettings["language"];
+  generateDimensionImage: boolean;
   dimensions: PreparedDimensionFact[];
 };
 
@@ -59,7 +60,7 @@ const ProviderProductAnalysisSchema = ProductAnalysisSchema.omit({ plan: true })
   plan: z.array(ProviderPlanItemSchema).min(1).max(16),
 }).strict();
 
-function planningRequirements(input: Pick<PromptInput, "imageCount" | "language" | "dimensions">) {
+function planningRequirements(input: Pick<PromptInput, "imageCount" | "language" | "generateDimensionImage" | "dimensions">) {
   const copyRule = input.language === "none"
     ? "营销文案 copy 必须为空字符串。"
     : `营销文案 copy 必须使用目标语言 ${input.language}。`;
@@ -72,12 +73,16 @@ function planningRequirements(input: Pick<PromptInput, "imageCount" | "language"
     "所有标题、目标、场景和生图提示词必须使用中文。",
     copyRule,
     "第 1 项必须是白底商品主图，不得包含营销文案或尺寸标注。",
-    ...(input.imageCount >= 2 ? [
+    ...(input.imageCount >= 2 && input.generateDimensionImage ? [
       "第 2 项必须是尺寸标注图：生成纯白背景、商品完整居中并四周留出标注空间的 3/4 立体视角底图。",
       "第 2 项的图片模型不得生成任何文字、数字、单位、尺寸线、箭头或侧边面板，程序将在生成后绘制可信标注。",
       `第 2 项必须按输入顺序返回恰好 ${input.dimensions.length} 个 annotations，每项只包含稳定尺寸 ID 和翻译后的 label。`,
       "AI 不得返回或改写尺寸数值，程序会从可信尺寸事实写入显示值。",
       ...dimensionRules,
+    ] : []),
+    ...(input.imageCount >= 2 && !input.generateDimensionImage ? [
+      "第 2 项应由 AI 规划为普通商品展示图，不添加尺寸标注，不强制纯白背景，并独立基于用户上传参考图规划，不依赖第 1 张。",
+      "第 2 项 annotations 必须为空数组。",
     ] : []),
   ].join("\n");
 }
@@ -125,6 +130,7 @@ function parseAnalysisContent(
   expectedCount: number,
   dimensionFacts: PreparedDimensionFact[],
   language: GenerationSettings["language"],
+  generateDimensionImage: boolean,
 ) {
   const unfenced = content
     .trim()
@@ -141,14 +147,14 @@ function parseAnalysisContent(
     plan: providerAnalysis.plan.map((item, index) => ({
       ...item,
       id: String(index + 1),
-      annotations: index === 1
+      annotations: index === 1 && generateDimensionImage
         ? bindDimensionAnnotations(item.annotations, dimensionFacts)
         : [],
     })),
   });
   const plannedAnalysis = applyPlanRules(assertChinesePlanningFields(
     assertPlanCount(analysis, expectedCount),
-  ));
+  ), generateDimensionImage);
   if (language !== "none") return plannedAnalysis;
   return {
     ...plannedAnalysis,
@@ -190,6 +196,7 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
             imageCount: expectedCount,
             platform: input.settings.platform,
             language: input.settings.language,
+            generateDimensionImage: input.settings.generateDimensionImage,
             dimensions: dimensionFacts,
           }),
         },
@@ -202,7 +209,13 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
   let content = "";
   try {
     content = getContent(response);
-    return parseAnalysisContent(content, expectedCount, dimensionFacts, input.settings.language);
+    return parseAnalysisContent(
+      content,
+      expectedCount,
+      dimensionFacts,
+      input.settings.language,
+      input.settings.generateDimensionImage,
+    );
   } catch {
     const repairResponse = await grsaiFetch<ChatCompletion>(
       "/v1/chat/completions",
@@ -210,7 +223,7 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
         ...messages,
         {
           role: "user",
-          content: `修复以下无效 JSON 分析结果。原始图像和用户信息仍是唯一事实来源。必须包含字段：${requiredFields}；plan 必须恰好 ${expectedCount} 项。不得臆造认证、功效、成分、规格或价格；无法从图片确认的内容标记为 inferred，用户提供的内容标记为 user_provided。visualFacts 和 sellingPoints 的 confidence 只能是 observed、inferred 或 user_provided。\n${planningRequirements({ imageCount: expectedCount, language: input.settings.language, dimensions: dimensionFacts })}\n只输出 JSON，不使用 Markdown。\n\n${content}`,
+          content: `修复以下无效 JSON 分析结果。原始图像和用户信息仍是唯一事实来源。必须包含字段：${requiredFields}；plan 必须恰好 ${expectedCount} 项。不得臆造认证、功效、成分、规格或价格；无法从图片确认的内容标记为 inferred，用户提供的内容标记为 user_provided。visualFacts 和 sellingPoints 的 confidence 只能是 observed、inferred 或 user_provided。\n${planningRequirements({ imageCount: expectedCount, language: input.settings.language, generateDimensionImage: input.settings.generateDimensionImage, dimensions: dimensionFacts })}\n只输出 JSON，不使用 Markdown。\n\n${content}`,
         },
       ]),
       fetchImpl,
@@ -221,6 +234,7 @@ export async function analyzeProduct(input: AnalysisInput, fetchImpl: typeof fet
         expectedCount,
         dimensionFacts,
         input.settings.language,
+        input.settings.generateDimensionImage,
       );
     } catch {
       throw new GrsaiError("invalid_request", "AI 分析结果格式异常，请重新分析", 502);

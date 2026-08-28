@@ -36,6 +36,18 @@ it("copies validated annotations and trims the watermark", () => {
   });
 });
 
+it("treats image two as an ordinary image when dimensions are disabled", () => {
+  expect(createImageRenderConfig(makePlanItems(2)[1], {
+    ...defaultSettings,
+    generateDimensionImage: false,
+  })).toEqual({
+    imageIndex: 2,
+    annotations: [],
+    watermark: "",
+    applyWatermark: false,
+  });
+});
+
 it.each(["0", "01", "1.5", "two", " 2 "])("rejects a non-normalized image id: %s", (id) => {
   expect(() => createImageRenderConfig({ ...onePlanItem, id }, defaultSettings)).toThrow("图片序号无效");
 });

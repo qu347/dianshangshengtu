@@ -72,6 +72,26 @@ it("leaves AI-planned items after image two unchanged", () => {
   expect(result.plan[2]).toBe(analysis.plan[2]);
 });
 
+it("keeps image two as an ordinary AI-planned product image when dimensions are disabled", () => {
+  const analysis = structuredClone(analysisWithTwoItems);
+  analysis.plan[1] = {
+    ...analysis.plan[1],
+    title: "商品使用场景",
+    objective: "展示商品在日常场景中的使用方式",
+    copy: "轻松融入日常",
+    scene: "明亮自然的居家桌面",
+    prompt: "在自然居家场景中完整展示商品。",
+    annotations: [{ id: "height", label: "杯高", displayValue: "12 cm" }],
+  };
+
+  const result = applyPlanRules(analysis, false);
+
+  expect(result.plan[0]).toMatchObject({ title: "白底商品主图", annotations: [] });
+  expect(result.plan[1]).toEqual({ ...analysis.plan[1], annotations: [] });
+  expect(result.plan[1].prompt).not.toContain("3/4 立体视角");
+  expect(result.plan[1].scene).not.toContain("纯白背景");
+});
+
 it("rejects non-Chinese editor planning text", () => {
   const analysis = structuredClone(analysisWithTwoItems);
   analysis.plan[0].prompt = "Professional product photography";
@@ -94,6 +114,26 @@ it("allows a Latin product name inside Chinese planning text", () => {
 
 it("accepts only a complete trusted fixed-image plan with canonical ids", () => {
   expect(GenerationPlanSchema(defaultSettings).parse(trustedPlan)).toEqual(trustedPlan);
+});
+
+it("accepts an ordinary annotation-free image two when dimensions are disabled", () => {
+  const settings = { ...defaultSettings, generateDimensionImage: false };
+  const ordinarySecond = {
+    ...trustedPlan[1],
+    title: "商品使用场景",
+    objective: "展示商品使用方式",
+    copy: "融入日常",
+    scene: "明亮自然的居家桌面",
+    prompt: "在居家桌面中完整展示商品。",
+    annotations: [],
+  };
+
+  expect(GenerationPlanSchema(settings).parse([trustedPlan[0], ordinarySecond]))
+    .toEqual([trustedPlan[0], ordinarySecond]);
+  expect(GenerationPlanSchema(settings).safeParse([
+    trustedPlan[0],
+    { ...ordinarySecond, annotations: trustedPlan[1].annotations },
+  ]).success).toBe(false);
 });
 
 it.each([

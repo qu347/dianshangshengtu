@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
     const render = createImageRenderConfig(item, settings);
     let baseImageDataUrl: string | undefined;
-    if (render.imageIndex === 2) {
+    if (render.imageIndex === 2 && settings.generateDimensionImage) {
       try {
         const baseImageToken = form.get("baseImageToken");
         if (typeof baseImageToken !== "string" || !baseImageToken) throw new Error();

@@ -191,6 +191,36 @@ it("prepends the normalized signed image-one result to image-two references", as
   }));
 });
 
+it("submits an ordinary image two without an image-one token when dimensions are disabled", async () => {
+  vi.mocked(submitImageGeneration).mockResolvedValue({
+    id: "job-2",
+    status: "running",
+    progress: 0,
+    results: [],
+  });
+  const item = {
+    ...analysisWithTwoItems.plan[1],
+    title: "商品使用场景",
+    objective: "展示商品日常使用方式",
+    copy: "融入日常",
+    scene: "自然光居家桌面",
+    prompt: "在自然光居家场景中完整展示商品。",
+    annotations: [],
+  };
+
+  const response = await POST(generationRequest(generationForm({
+    settings: { ...defaultSettings, generateDimensionImage: false },
+    item,
+  })));
+
+  expect(response.status).toBe(200);
+  expect(fetchPublicImage).not.toHaveBeenCalled();
+  expect(normalizeWhiteBackground).not.toHaveBeenCalled();
+  expect(submitImageGeneration).toHaveBeenCalledWith(expect.objectContaining({
+    images: ["data:image/webp;base64,UklGRgAAAABXRUJQ"],
+  }));
+});
+
 it("returns a signed job token that keeps the render config with a running submission", async () => {
   vi.mocked(submitImageGeneration).mockResolvedValue({
     id: "job-1",

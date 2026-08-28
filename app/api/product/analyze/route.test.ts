@@ -123,6 +123,21 @@ it("rejects missing dimensions for a multi-image analysis", async () => {
   expect(analyzeProduct).not.toHaveBeenCalled();
 });
 
+it("accepts no dimensions when the dimension image is disabled", async () => {
+  vi.mocked(analyzeProduct).mockResolvedValueOnce(analysisWithTwoItems);
+
+  const response = await POST(analysisRequest(analysisForm({
+    settings: { ...validSettings, imageCount: 2, generateDimensionImage: false },
+    dimensions: null,
+  })));
+
+  expect(response.status).toBe(200);
+  expect(analyzeProduct).toHaveBeenCalledWith(expect.objectContaining({
+    settings: expect.objectContaining({ generateDimensionImage: false }),
+    dimensions: [],
+  }));
+});
+
 it("accepts a JPEG whose bytes contain the JPEG magic signature", async () => {
   vi.mocked(analyzeProduct).mockResolvedValueOnce(analysisWithTwoItems);
 

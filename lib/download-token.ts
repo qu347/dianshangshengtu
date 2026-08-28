@@ -74,6 +74,7 @@ function isImageRenderConfig(value: unknown): value is ImageRenderConfig {
   if (!annotationsValid) return false;
 
   if (value.imageIndex === 2) {
+    if (value.annotations.length === 0) return value.dimensionLayout === undefined;
     try {
       bindDimensionLayout(value.dimensionLayout, value.annotations as ImageRenderConfig["annotations"]);
       return true;

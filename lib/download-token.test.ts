@@ -36,6 +36,21 @@ describe("render-context tokens", () => {
     expect(verifyJobToken(job, "secret", 120)).toEqual({ providerJobId: "provider-job", render });
   });
 
+  it("round-trips an ordinary image-two render context without dimension layout", () => {
+    const ordinary: ImageRenderConfig = {
+      imageIndex: 2,
+      annotations: [],
+      watermark: "Brand",
+      applyWatermark: true,
+    };
+
+    const token = signDownloadUrl("https://cdn.example/ordinary.png", ordinary, "secret", 100, 60);
+    expect(verifyDownloadToken(token, "secret", 120)).toEqual({
+      url: "https://cdn.example/ordinary.png",
+      render: ordinary,
+    });
+  });
+
   it("rejects a render-context mutation", () => {
     const token = signJobToken("provider-job", render, "secret", 100, 60);
     const [payload, signature] = token.split(".");

@@ -27,10 +27,12 @@ const secondPlanTemplate = {
   prompt: "生成完整的 3/4 立体视角商品底图，保持产品结构、颜色、材质、Logo 和 SKU 不变；整张画布使用纯白背景，商品居中完整、不裁切且四周留出标注空间；不生成任何文字、数字、单位、尺寸线、箭头或侧边面板。",
 };
 
-export function applyPlanRules(analysis: ProductAnalysis): ProductAnalysis {
+export function applyPlanRules(analysis: ProductAnalysis, generateDimensionImage = true): ProductAnalysis {
   const plan = analysis.plan.map((item, index) => {
     if (index === 0) return { ...item, ...firstPlanTemplate, annotations: [] };
     if (index !== 1) return item;
+
+    if (!generateDimensionImage) return { ...item, annotations: [] };
 
     return {
       ...item,
@@ -85,7 +87,7 @@ export function GenerationPlanItemSchema(settings: GenerationSettings) {
       }
     }
 
-    if (imageIndex === 2) {
+    if (imageIndex === 2 && settings.generateDimensionImage) {
       if (item.type !== "detail") {
         context.addIssue({ code: "custom", path: ["type"], message: "第 2 张必须是尺寸详情图" });
       }
@@ -102,6 +104,10 @@ export function GenerationPlanItemSchema(settings: GenerationSettings) {
       if (!hasDimensionLayout) {
         context.addIssue({ code: "custom", path: ["prompt"], message: "第 2 张必须保留尺寸标注版式" });
       }
+    }
+
+    if (imageIndex === 2 && !settings.generateDimensionImage && item.annotations.length > 0) {
+      context.addIssue({ code: "custom", path: ["annotations"], message: "未启用尺寸标注图时第 2 张不得包含尺寸标注" });
     }
 
     if (imageIndex > 2 && item.annotations.length > 0) {

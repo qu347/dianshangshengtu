@@ -32,7 +32,7 @@ export function buildGenerationPrompt(item: PlanItem, settings: GenerationSettin
     `图片类型：${item.type === "main" ? "商品主图" : "商品详情图"}。`,
     `任务目标：${item.objective}。场景：${item.scene}。`,
     item.copy ? `展示文案：${item.copy}。` : "",
-    item.id === "2"
+    item.id === "2" && settings.generateDimensionImage
       ? "第 2 张以第一张参考图中的商品为准，生成完整的 3/4 立体视角商品底图。整张画布保持纯白，商品居中完整并保留充足边距，不得生成文字或尺寸图形。"
       : "",
     `用户确认的提示词：${item.prompt}。`,

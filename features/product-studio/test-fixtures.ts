@@ -1,5 +1,5 @@
 import type { GenerationSettings, PlanItem, ProductAnalysis } from "./model";
-export const defaultSettings: GenerationSettings = { platform: "taobao", language: "zh-CN", aspectRatio: "1024x1536", imageCount: 2, quality: "auto", watermark: "" };
+export const defaultSettings: GenerationSettings = { platform: "taobao", language: "zh-CN", aspectRatio: "1024x1536", imageCount: 2, quality: "auto", watermark: "", generateDimensionImage: true };
 export function makePlanItems(count: number): PlanItem[] { return Array.from({ length: count }, (_, index) => ({ id: String(index + 1), type: index === 0 ? "main" : "detail", title: index === 0 ? "白底主图" : `详情图 ${index}`, objective: index === 0 ? "完整展示产品" : "展示核心卖点", copy: index === 0 ? "" : `卖点 ${index}`, scene: index === 0 ? "纯白摄影棚" : "真实使用场景", prompt: index === 0 ? "生成纯白背景商品主图" : `生成第 ${index} 张详情图`, annotations: [] })); }
 export const analysisWithTwoItems: ProductAnalysis = {
   category: "杯具",

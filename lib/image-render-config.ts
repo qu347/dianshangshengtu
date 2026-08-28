@@ -21,7 +21,8 @@ function imageIndexFromId(id: string) {
 export function createImageRenderConfig(item: PlanItem, settings: GenerationSettings): ImageRenderConfig {
   const imageIndex = imageIndexFromId(item.id);
   const watermark = settings.watermark.trim();
-  const annotations = item.annotations.flatMap((annotation) => {
+  const isDimensionImage = imageIndex === 2 && settings.generateDimensionImage;
+  const annotations = (isDimensionImage ? item.annotations : []).flatMap((annotation) => {
     const parsed = DimensionAnnotationSchema.safeParse(annotation);
     return parsed.success ? [parsed.data] : [];
   });
@@ -29,7 +30,7 @@ export function createImageRenderConfig(item: PlanItem, settings: GenerationSett
   return {
     imageIndex,
     annotations,
-    ...(imageIndex === 2 ? { dimensionLayout: fallbackDimensionLayout(annotations) } : {}),
+    ...(isDimensionImage ? { dimensionLayout: fallbackDimensionLayout(annotations) } : {}),
     watermark,
     applyWatermark: shouldApplyWatermark(settings.platform, imageIndex, watermark),
   };

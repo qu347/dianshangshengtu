@@ -29,7 +29,10 @@ export async function POST(request: Request) {
     }
     let dimensions: DimensionItem[];
     try {
-      dimensions = DimensionItemsSchema(settings.imageCount).parse(
+      dimensions = DimensionItemsSchema(
+        settings.imageCount,
+        settings.generateDimensionImage,
+      ).parse(
         JSON.parse(String(form.get("dimensions") ?? "[]")),
       );
     } catch (error) {

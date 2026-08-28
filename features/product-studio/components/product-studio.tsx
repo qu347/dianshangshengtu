@@ -51,7 +51,11 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
       dispatch({ type: "analysis_failed", message: "请至少上传 1 张产品图" });
       return;
     }
-    const dimensions = DimensionItemsSchema(state.settings.imageCount).safeParse(state.dimensions);
+    const dimensionInput = state.settings.generateDimensionImage ? state.dimensions : [];
+    const dimensions = DimensionItemsSchema(
+      state.settings.imageCount,
+      state.settings.generateDimensionImage,
+    ).safeParse(dimensionInput);
     if (!dimensions.success) {
       dispatch({ type: "analysis_failed", message: "请完善产品尺寸后再分析" });
       return;
@@ -119,7 +123,7 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
   }
 
   async function handleRetry(item: PlanItem) {
-    const baseImageToken = item.id === "2"
+    const baseImageToken = state.settings.generateDimensionImage && item.id === "2"
       ? state.tasks.find((task) => (
           task.planItemId === "1"
           && task.status === "succeeded"
@@ -241,12 +245,34 @@ export function ProductStudio({ api = defaultProductStudioApi }: { api?: Product
                   }} />
                 </label>
                 <div className="mt-3" aria-labelledby="product-dimensions-title">
-                  <h4 id="product-dimensions-title" className="text-xs font-medium text-[#5f646e]">产品尺寸</h4>
-                  <DimensionEditor value={state.dimensions} imageCount={state.settings.imageCount} disabled={inputsDisabled} onChange={(dimensions) => {
-                    if (generationBusyRef.current) return;
-                    invalidateAnalysis();
-                    dispatch({ type: "dimensions_changed", dimensions });
-                  }} />
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 id="product-dimensions-title" className="text-xs font-medium text-[#5f646e]">产品尺寸</h4>
+                    <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-[#4f5560]">
+                      <input
+                        type="checkbox"
+                        aria-label="生成尺寸标注图"
+                        className="size-4 accent-[#6d5ce7]"
+                        checked={state.settings.generateDimensionImage}
+                        disabled={inputsDisabled}
+                        onChange={(event) => {
+                          if (generationBusyRef.current) return;
+                          invalidateAnalysis();
+                          dispatch({
+                            type: "settings_changed",
+                            patch: { generateDimensionImage: event.currentTarget.checked },
+                          });
+                        }}
+                      />
+                      <span>生成尺寸标注图</span>
+                    </label>
+                  </div>
+                  {state.settings.generateDimensionImage && (
+                    <DimensionEditor value={state.dimensions} imageCount={state.settings.imageCount} disabled={inputsDisabled} onChange={(dimensions) => {
+                      if (generationBusyRef.current) return;
+                      invalidateAnalysis();
+                      dispatch({ type: "dimensions_changed", dimensions });
+                    }} />
+                  )}
                 </div>
                 <label className="mt-3 block text-xs font-medium text-[#5f646e]">
                   补充要求

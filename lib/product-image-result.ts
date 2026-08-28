@@ -13,7 +13,11 @@ export async function prepareGeneratedImageResult(input: {
   | { ok: true; render: ImageRenderConfig }
   | { ok: false; error: string }
 > {
-  if (input.render.imageIndex > 2) return { ok: true, render: input.render };
+  const isDimensionImage = input.render.imageIndex === 2
+    && input.render.dimensionLayout !== undefined;
+  if (input.render.imageIndex !== 1 && !isDimensionImage) {
+    return { ok: true, render: input.render };
+  }
 
   let normalized: Buffer;
   try {
@@ -28,7 +32,7 @@ export async function prepareGeneratedImageResult(input: {
     };
   }
 
-  if (input.render.imageIndex === 1) return { ok: true, render: input.render };
+  if (!isDimensionImage) return { ok: true, render: input.render };
 
   let dimensionLayout = fallbackDimensionLayout(input.render.annotations);
   try {

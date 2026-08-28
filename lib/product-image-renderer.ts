@@ -218,8 +218,10 @@ export async function renderProductImage(input: Buffer, config: ImageRenderConfi
   if (inputMetadata.format === "svg") throw new Error("不支持 SVG 图片");
 
   let normalized: Buffer;
+  const isDimensionImage = config.imageIndex === 2
+    && (config.annotations.length > 0 || config.dimensionLayout !== undefined);
   try {
-    normalized = config.imageIndex === 1 || config.imageIndex === 2
+    normalized = config.imageIndex === 1 || isDimensionImage
       ? await normalizeWhiteBackground(input)
       : await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS }).rotate().png().toBuffer();
   } catch {
@@ -237,7 +239,7 @@ export async function renderProductImage(input: Buffer, config: ImageRenderConfi
     throw new Error("图片尺寸超过限制");
   }
 
-  const annotations = config.imageIndex === 2 ? config.annotations.slice(0, 6) : [];
+  const annotations = isDimensionImage ? config.annotations.slice(0, 6) : [];
   const watermark = config.applyWatermark ? config.watermark : "";
   if (annotations.length === 0 && !watermark) return normalized;
 

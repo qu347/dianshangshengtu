@@ -49,6 +49,7 @@ it("requires the exact requested plan count and forbids invented claims", () => 
     imageCount: 6,
     platform: "taobao",
     language: "zh-CN",
+    generateDimensionImage: true,
     dimensions: [],
   });
 
@@ -64,6 +65,7 @@ it("requires Chinese planning fields and fixed dimension-image rules", () => {
     imageCount: 2,
     platform: "amazon",
     language: "en",
+    generateDimensionImage: true,
     dimensions: [
       { id: "height", sourceLabel: "杯高", displayValue: "4.72 in" },
     ],
@@ -77,6 +79,52 @@ it("requires Chinese planning fields and fixed dimension-image rules", () => {
   expect(prompt).toContain("不得生成任何文字、数字、单位、尺寸线、箭头或侧边面板");
   expect(prompt).toContain("返回尺寸 ID “height”及标注标签“杯高”的英文翻译");
   expect(prompt).toContain("AI 不得返回或改写尺寸数值");
+});
+
+it("plans an independent ordinary image two when dimensions are disabled", () => {
+  const prompt = buildAnalysisPrompt({
+    productName: "玻璃杯",
+    requirements: "",
+    imageCount: 2,
+    platform: "taobao",
+    language: "zh-CN",
+    generateDimensionImage: false,
+    dimensions: [],
+  });
+
+  expect(prompt).toContain("第 2 项应由 AI 规划为普通商品展示图");
+  expect(prompt).toContain("不依赖第 1 张");
+  expect(prompt).not.toContain("第 2 项必须是尺寸标注图");
+  expect(prompt).not.toContain("3/4 立体视角");
+});
+
+it("keeps the provider's ordinary image-two plan and removes annotations when disabled", async () => {
+  const providerAnalysis = providerAnalysisWithDimensions();
+  providerAnalysis.plan[1] = {
+    ...providerAnalysis.plan[1],
+    title: "自然场景展示",
+    objective: "展示商品日常使用方式",
+    copy: "轻松融入生活",
+    scene: "自然光居家桌面",
+    prompt: "在自然光居家场景中完整展示商品。",
+  };
+  const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    choices: [{ message: { content: JSON.stringify(providerAnalysis) } }],
+  }), { status: 200 }));
+
+  const result = await analyzeProduct({
+    ...validInput,
+    settings: { ...defaultSettings, generateDimensionImage: false },
+    dimensions: [],
+  }, fetchImpl);
+
+  expect(fetchImpl).toHaveBeenCalledOnce();
+  expect(result.plan[1]).toMatchObject({
+    title: "自然场景展示",
+    scene: "自然光居家桌面",
+    prompt: "在自然光居家场景中完整展示商品。",
+    annotations: [],
+  });
 });
 
 it("submits analysis with the available Grsai vision model", async () => {

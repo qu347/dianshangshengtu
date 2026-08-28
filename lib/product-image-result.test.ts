@@ -96,3 +96,23 @@ it("skips fixed-image preparation for image three and later", async () => {
   expect(fetchImage).not.toHaveBeenCalled();
   expect(analyzeLayout).not.toHaveBeenCalled();
 });
+
+it("skips white-background and placement preparation for an ordinary image two", async () => {
+  const fetchImage = vi.fn();
+  const analyzeLayout = vi.fn();
+  const ordinaryRender: ImageRenderConfig = {
+    imageIndex: 2,
+    annotations: [],
+    watermark: "",
+    applyWatermark: false,
+  };
+
+  await expect(prepareGeneratedImageResult({
+    url: "https://cdn.example/ordinary-product.png",
+    render: ordinaryRender,
+    fetchImage,
+    analyzeLayout,
+  })).resolves.toEqual({ ok: true, render: ordinaryRender });
+  expect(fetchImage).not.toHaveBeenCalled();
+  expect(analyzeLayout).not.toHaveBeenCalled();
+});

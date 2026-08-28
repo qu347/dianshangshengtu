@@ -142,6 +142,22 @@ export async function runGenerationBatch(input: {
     results.push(failed);
   }
 
+  if (!input.settings.generateDimensionImage) {
+    const independentItems = input.items;
+    async function independentWorker() {
+      while (nextIndex < independentItems.length && !input.signal?.aborted) {
+        await runOne(independentItems[nextIndex++]);
+      }
+    }
+
+    const workerCount = Math.min(3, independentItems.length);
+    await Promise.all(Array.from({ length: workerCount }, independentWorker));
+    return results.sort((left, right) => (
+      (itemOrder.get(left.planItemId) ?? Number.MAX_SAFE_INTEGER)
+      - (itemOrder.get(right.planItemId) ?? Number.MAX_SAFE_INTEGER)
+    ));
+  }
+
   const imageOne = input.items.find((item) => item.id === "1");
   let baseImageToken = input.baseImageToken;
   let remainingItems = input.items;

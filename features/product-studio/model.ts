@@ -7,6 +7,7 @@ export const GenerationSettingsSchema = z.object({
   imageCount: z.number().int().min(1).max(16),
   quality: z.enum(["auto", "low", "medium", "high"]),
   watermark: z.string().max(40),
+  generateDimensionImage: z.boolean().default(true),
 }).superRefine((settings, context) => {
   const fixedLanguages = {
     taobao: "zh-CN",
@@ -36,10 +37,10 @@ export const DimensionItemSchema = z.object({
 });
 export type DimensionItem = z.infer<typeof DimensionItemSchema>;
 
-export const DimensionItemsSchema = (imageCount: number) => z.array(DimensionItemSchema)
+export const DimensionItemsSchema = (imageCount: number, generateDimensionImage = true) => z.array(DimensionItemSchema)
   .max(6, "最多填写 6 个产品尺寸")
   .superRefine((items, context) => {
-    if (imageCount >= 2 && items.length === 0) {
+    if (generateDimensionImage && imageCount >= 2 && items.length === 0) {
       context.addIssue({ code: "custom", message: "生成 2 张及以上时至少填写 1 个产品尺寸" });
     }
   });

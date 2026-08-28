@@ -84,12 +84,35 @@ describe("renderProductImage", () => {
       top: 450,
     }]).png().toBuffer();
 
-    const output = await renderProductImage(source, config({ imageIndex }));
+    const output = await renderProductImage(source, config({
+      imageIndex,
+      ...(imageIndex === 2 ? {
+        dimensionLayout: {
+          bounds: { left: 220, top: 250, right: 780, bottom: 780 },
+          placements: [],
+        },
+      } : {}),
+    }));
 
     expect(Array.from(await rawRegion(output, { left: 10, top: 10, width: 1, height: 1 })))
       .toEqual([255, 255, 255]);
     expect(Array.from(await rawRegion(output, { left: 500, top: 600, width: 1, height: 1 })))
       .toEqual([119, 119, 119]);
+  });
+
+  it("keeps an ordinary image-two background when no dimension layout is present", async () => {
+    const wood = await sharp({
+      create: { width, height, channels: 3, background: "#a07850" },
+    }).png().toBuffer();
+
+    const output = await renderProductImage(wood, config({
+      imageIndex: 2,
+      annotations: [],
+      dimensionLayout: undefined,
+    }));
+
+    expect(Array.from(await rawRegion(output, { left: 10, top: 10, width: 1, height: 1 })))
+      .toEqual([160, 120, 80]);
   });
 
   it("rejects an overlong oriented dimension before composition", async () => {
