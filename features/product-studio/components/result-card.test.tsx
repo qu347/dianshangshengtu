@@ -1,15 +1,29 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeAll, vi } from "vitest";
+import { StrictMode } from "react";
+import { beforeAll, beforeEach, vi } from "vitest";
 import { makePlanItems } from "../test-fixtures";
 import { ResultCard } from "./result-card";
 
 const item = makePlanItems(1)[0];
 const handlers = { onRetry: vi.fn(), onContinuePolling: vi.fn(), onDownload: vi.fn() };
+const showModal = vi.fn(function (this: HTMLDialogElement) {
+  this.open = true;
+  this.querySelector<HTMLElement>("button")?.focus();
+});
+const close = vi.fn(function (this: HTMLDialogElement) {
+  this.open = false;
+  this.dispatchEvent(new Event("close"));
+});
 
 beforeAll(() => {
-  HTMLDialogElement.prototype.showModal ??= vi.fn();
-  HTMLDialogElement.prototype.close ??= vi.fn();
+  HTMLDialogElement.prototype.showModal = showModal;
+  HTMLDialogElement.prototype.close = close;
+});
+
+beforeEach(() => {
+  showModal.mockClear();
+  close.mockClear();
 });
 
 it.each([
@@ -58,13 +72,19 @@ it("shows the dimensions title only for a plan item that carries it", () => {
 
 it("closes the result dialog and returns focus to its trigger", async () => {
   const user = userEvent.setup();
-  render(<ResultCard item={item} task={{ planItemId: item.id, status: "succeeded", progress: 100, resultUrl: "https://cdn.example/result.png", downloadToken: "token" }} {...handlers} />);
+  render(<StrictMode><ResultCard item={item} task={{ planItemId: item.id, status: "succeeded", progress: 100, resultUrl: "https://cdn.example/result.png", downloadToken: "token" }} {...handlers} /></StrictMode>);
   const trigger = screen.getByRole("button", { name: "查看大图" });
 
   await user.click(trigger);
-  expect(screen.getByRole("dialog", { name: "生成结果：白底主图" })).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "关闭大图" }));
+  const dialog = screen.getByRole("dialog", { name: "生成结果：白底主图" });
+  expect(dialog).toHaveClass("fixed", "inset-0", "z-50");
+  expect(dialog).toHaveAttribute("aria-modal", "true");
+  expect(showModal).toHaveBeenCalledOnce();
+  const closeButton = screen.getByRole("button", { name: "关闭大图" });
+  expect(closeButton).toHaveFocus();
+  await user.click(closeButton);
 
+  expect(close).toHaveBeenCalledOnce();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(trigger).toHaveFocus();
 });
