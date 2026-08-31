@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { GenerationTask, PlanItem } from "../model";
 
 type ResultCardProps = {
@@ -17,7 +17,6 @@ type ResultCardProps = {
 
 export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload, busy = false, retrying = false, downloadBusy = false }: ResultCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const viewButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = `result-title-${item.id}`;
   const imageLabel = `生成结果：${item.title}`;
@@ -27,12 +26,7 @@ export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload,
   const isInProgress = task.status === "queued" || task.status === "submitting" || task.status === "running";
   const progressLabel = task.status === "queued" ? "等待生成" : task.status === "submitting" ? retrying ? "正在重新提交…" : "正在提交" : "生成中";
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialogOpen && dialog && !dialog.open) dialog.showModal();
-  }, [dialogOpen]);
-
-  function handleDialogClosed() {
+  function closeDialog() {
     setDialogOpen(false);
     viewButtonRef.current?.focus();
   }
@@ -88,9 +82,9 @@ export function ResultCard({ item, task, onRetry, onContinuePolling, onDownload,
       )}
 
       {dialogOpen && task.status === "succeeded" && task.resultUrl && (
-        <dialog ref={dialogRef} aria-modal="true" aria-label={imageLabel} onClose={handleDialogClosed} className="fixed inset-0 z-50 m-auto max-h-[92vh] w-[min(900px,94vw)] rounded-2xl border-0 bg-white p-4 shadow-2xl backdrop:bg-black/70">
-          <div className="flex justify-end"><button className="rounded-full bg-[#f1f2f4] px-3 py-1.5 text-sm font-medium" type="button" onClick={() => dialogRef.current?.close()}>关闭大图</button></div>
-          <Image unoptimized width={1024} height={1024} className="mt-3 h-auto max-h-[78vh] w-full object-contain" src={task.resultUrl} alt={imageLabel} />
+        <dialog open aria-label={imageLabel} className="m-auto max-h-[90vh] max-w-[90vw] rounded-2xl border-0 p-4 shadow-2xl backdrop:bg-black/60">
+          <Image unoptimized width={1024} height={1024} className="h-auto max-h-[80vh] w-auto max-w-full object-contain" src={task.resultUrl} alt={imageLabel} />
+          <button className="mt-3 rounded-lg border border-[#d5d8df] px-3 py-2 text-sm font-medium" type="button" onClick={closeDialog}>关闭大图</button>
         </dialog>
       )}
     </article>
