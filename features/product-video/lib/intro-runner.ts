@@ -103,17 +103,22 @@ export async function runShotBatch(input: {
       if (input.signal?.aborted) return;
       input.onShotChange(submitted);
       let result = submitted;
-      if (submitted.status === "running" && submitted.providerJobId) {
-        result = await pollShotJob({
-          providerJobId: submitted.providerJobId,
-          shotId: shot.id,
-          api: input.api,
-          onShotChange: input.onShotChange,
-          signal: input.signal,
-          sleep: input.sleep,
-          now: input.now,
-          timeoutMs: input.timeoutMs,
-        });
+      if (submitted.status === "queued" || submitted.status === "submitting" || submitted.status === "running") {
+        if (!submitted.providerJobId) {
+          result = { ...submitted, status: "failed", error: "视频任务未返回任务编号，可重试" };
+          input.onShotChange(result);
+        } else {
+          result = await pollShotJob({
+            providerJobId: submitted.providerJobId,
+            shotId: shot.id,
+            api: input.api,
+            onShotChange: input.onShotChange,
+            signal: input.signal,
+            sleep: input.sleep,
+            now: input.now,
+            timeoutMs: input.timeoutMs,
+          });
+        }
       }
       results.push(result);
     } catch (error) {

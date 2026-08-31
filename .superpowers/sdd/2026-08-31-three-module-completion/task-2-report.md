@@ -38,3 +38,13 @@
 - Commit message: `fix: complete product video workflow`.
 - `git diff --check 5b91f8e..HEAD` passed after the final commit amendment.
 - No real Grsai/Jimeng/ffmpeg invocation has been performed.
+
+## P1 follow-up: reject incomplete outcomes
+
+- Review finding: `generation_completed` treated an empty list or any active task as `completed`; the runner only polled submissions already marked `running`.
+- RED: `npx vitest run features/product-video/state.test.ts features/product-video/lib/intro-runner.test.ts --exclude '.worktrees/**'` — 5 expected failures covering empty completion, queued completion, succeeded plus running completion, and queued/submitting submission polling.
+- GREEN: same command — 2 files / 10 tests passed.
+- Reducer behavior: only a nonempty all-succeeded task list completes. Empty final results fail with `没有可完成的视频任务，请重新生成`; active tasks are converted to `failed` with `未完成，可重试`, preserving terminal task object references and results.
+- Runner behavior: queued, submitting, and running submit results with a provider job ID continue through the same signal-aware poller; a missing job ID becomes a retryable failed task instead of an incomplete final result.
+- Environment note: the focused RED command initially could not load Vitest because local `node_modules` had been emptied while `package-lock.json` was unchanged. `npm ci` restored the lockfile-exact dependency set; it changed no source or lockfile content.
+- Follow-up verification: Task 2 suite 14 files / 88 tests passed; video-remake shared regression 14 files / 59 tests passed; `npx tsc --noEmit` and `npm run build` passed.

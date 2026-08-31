@@ -48,6 +48,34 @@ it("derives completed, partial_failed, and failed phases from final shot outcome
   expect(productVideoReducer(state, { type: "generation_completed", tasks: [failed] }).phase).toBe("failed");
 });
 
+it("fails an empty completion with a recoverable notice", () => {
+  const next = productVideoReducer(stateWith([]), { type: "generation_completed", tasks: [] });
+
+  expect(next.phase).toBe("failed");
+  expect(next.tasks).toEqual([]);
+  expect(next.notice).toBe("没有可完成的视频任务，请重新生成");
+});
+
+it("converts a queued completion into a retryable failure", () => {
+  const queued = { shotId: "1", status: "queued" as const, progress: 0 };
+
+  const next = productVideoReducer(stateWith([queued]), { type: "generation_completed", tasks: [queued] });
+
+  expect(next.phase).toBe("failed");
+  expect(next.tasks).toEqual([{ ...queued, status: "failed", error: "未完成，可重试" }]);
+});
+
+it("preserves succeeded tasks while converting a running completion to partial failure", () => {
+  const first = succeeded("1", "first-download-token");
+  const running = { shotId: "2", status: "running" as const, progress: 40, providerJobId: "job-2" };
+
+  const next = productVideoReducer(stateWith([first, running]), { type: "generation_completed", tasks: [first, running] });
+
+  expect(next.phase).toBe("partial_failed");
+  expect(next.tasks[0]).toBe(first);
+  expect(next.tasks[1]).toEqual({ ...running, status: "failed", error: "未完成，可重试" });
+});
+
 it("keeps cancellation distinct and makes only unfinished shots retryable", () => {
   const first = succeeded("1", "first-download-token");
   const failed = { shotId: "2", status: "failed" as const, progress: 0, error: "provider timed out" };

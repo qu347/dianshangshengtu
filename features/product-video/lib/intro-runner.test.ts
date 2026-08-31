@@ -51,3 +51,29 @@ it("passes the same signal into polling", async () => {
 
   expect(receivedSignal).toBe(controller.signal);
 });
+
+it.each(["queued", "submitting"] as const)("polls a %s submission until it reaches a terminal result", async (status) => {
+  const controller = new AbortController();
+  const poll = vi.fn().mockResolvedValue({
+    shotId: "1",
+    status: "succeeded" as const,
+    progress: 100,
+    resultUrl: "https://cdn.example/clip.mp4",
+    downloadToken: "download-token",
+  });
+
+  const results = await runShotBatch({
+    shots: shots.slice(0, 1),
+    productImages: [],
+    settings: { ...settings, durationSec: 5 },
+    api: {
+      submit: vi.fn().mockResolvedValue({ shotId: "1", status, progress: 20, providerJobId: "job-1" }) as never,
+      status: poll,
+    },
+    onShotChange: vi.fn(),
+    signal: controller.signal,
+  });
+
+  expect(poll).toHaveBeenCalledWith("job-1", "1", controller.signal);
+  expect(results).toMatchObject([{ shotId: "1", status: "succeeded", downloadToken: "download-token" }]);
+});

@@ -88,13 +88,21 @@ export function productVideoReducer(state: ProductVideoState, action: ProductVid
     return { ...state, phase: "generating", tasks: state.tasks.map((task) => task.shotId === action.task.shotId ? action.task : task) };
   }
   if (action.type === "generation_completed") {
-    const failedCount = action.tasks.filter((task) => task.status === "failed").length;
-    const phase = failedCount === 0
+    if (action.tasks.length === 0) {
+      return { ...state, phase: "failed", tasks: [], notice: "没有可完成的视频任务，请重新生成" };
+    }
+    const tasks = action.tasks.map((task) => (
+      task.status === "queued" || task.status === "submitting" || task.status === "running"
+        ? { ...task, status: "failed" as const, error: "未完成，可重试" }
+        : task
+    ));
+    const succeededCount = tasks.filter((task) => task.status === "succeeded").length;
+    const phase = succeededCount === tasks.length
       ? "completed"
-      : failedCount === action.tasks.length
-        ? "failed"
-        : "partial_failed";
-    return { ...state, phase, tasks: action.tasks };
+      : succeededCount > 0
+        ? "partial_failed"
+        : "failed";
+    return { ...state, phase, tasks };
   }
   if (action.type === "generation_cancelled") {
     const tasks = action.tasks.map((task) => (
