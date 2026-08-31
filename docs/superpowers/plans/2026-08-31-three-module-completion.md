@@ -29,6 +29,7 @@
 **Files:**
 - Modify: `features/video-remake/model.ts`
 - Modify: `features/video-remake/state.ts`
+- Create: `features/video-remake/state.test.ts`
 - Modify: `features/video-remake/model.test.ts`
 - Modify: `features/video-remake/components/video-remake.tsx`
 - Create: `features/video-remake/components/video-remake.test.tsx`
