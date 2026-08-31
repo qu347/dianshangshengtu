@@ -26,6 +26,18 @@ vi.mock("./script-editor", () => ({
   ScriptEditor: ({ onConfirm }: { onConfirm: () => void }) => <button type="button" onClick={onConfirm}>生成分镜</button>,
 }));
 
+it("shows the decoded over-90-second error without starting analysis or generation", async () => {
+  const referenceVideo = new File(["reference"], "too-long.mp4", { type: "video/mp4" });
+  vi.mocked(extractVideoFrames).mockRejectedValueOnce(new Error("参考视频不能超过 90 秒"));
+
+  render(<VideoRemake />);
+  fireEvent.change(screen.getByLabelText("上传参考视频"), { target: { files: [referenceVideo] } });
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("参考视频不能超过 90 秒");
+  expect(analyzeScriptClient).not.toHaveBeenCalled();
+  expect(runSceneBatch).not.toHaveBeenCalled();
+});
+
 it("passes the selected normalized model image to scene generation", async () => {
   const referenceVideo = new File(["reference"], "reference.mp4", { type: "video/mp4" });
   const productImage = new File(["product"], "product.png", { type: "image/png" });

@@ -22,8 +22,9 @@ The generic fallback is registered before exact routes, so Playwright processes 
 
 - New E2E RED: first run exposed the Next route announcer as a second `role=alert` match; selectors were narrowed to the actual failure text. The next run showed that `video preload=metadata` also requests inline clips, so ZIP assertions were correctly narrowed to download requests without `inline=1`.
 - New E2E GREEN: `PLAYWRIGHT_CHANNEL=msedge; npm run test:e2e -- tests/e2e/video-remake.spec.ts tests/e2e/product-video.spec.ts` passed 2/2.
-- Decoded >90-second boundary: `npx vitest run features/video-remake/lib/frames.test.ts features/video-remake/components/video-remake.test.tsx app/api/product-video/merge/route.test.ts` passed 16/16, including `rejects a decoded reference video longer than 90 seconds before extracting frames`. The callback-only `execFile` mock also ran without `[DEP0174]`.
-- `npm test`: 86 files, 547 tests passed.
+- Decoded >90-second boundary: coverage GREEN adds `shows the decoded over-90-second error without starting analysis or generation` at the `VideoRemake` component boundary. It mocks decoded-frame extraction rejecting with `参考视频不能超过 90 秒`, asserts the visible error, and confirms neither analysis nor generation begins. The existing frames test still covers the underlying decoded-duration rejection. The callback-only `execFile` mock also runs without `[DEP0174]`.
+- Targeted video-remake/component/merge verification: 3 files, 17 tests passed.
+- `npm test`: 86 files, 548 tests passed.
 - `npm run lint`: exit 0; two pre-existing warnings remain (`product-video.test.tsx` unused callback argument and `product-video/lib/client.ts` unused import), with zero errors.
 - `npx tsc --noEmit --incremental false`: passed.
 - `npm run build`: passed and listed all four pages plus clothing/product/video-remake/product-video API routes.
