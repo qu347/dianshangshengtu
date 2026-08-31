@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript 5.9, Zod 4, Vitest, Testing Library, Playwright, Sharp, JSZip, ffmpeg.
 
-**Spec:** `docs/superpowers/specs/2026-08-29-video-remake-design.md`, `docs/superpowers/plans/2026-08-29-product-intro-video-prompt.md`, and `docs/superpowers/specs/2026-08-28-clothing-studio-design.md`.
+**Spec:** `docs/superpowers/specs/2026-08-29-video-remake-design.md`, `docs/superpowers/plans/2026-08-29-product-intro-video-prompt.md`, `docs/superpowers/specs/2026-08-28-clothing-studio-design.md`, and the provider contract at `https://www.jimengvip.online/docs/api-guide.html` (authoritative when provider limits differ from older local prose).
 
 ## Global Constraints
 
@@ -18,7 +18,8 @@
 - Preserve all user-owned untracked ZIP files, old worktrees, environment files, and unrelated dirty changes.
 - A single-scene or single-shot retry must preserve every other task, preview URL, and download token.
 - Video remake accepts MP4/WEBM up to 150 MB and rejects durations above 90 seconds instead of silently truncating.
-- Video intro total duration is 4..30 seconds and each shot is 4..15 seconds.
+- The selectable `nd-seedance-2.0-480p` and `nd-seedance-2.0-720p` models support 5..15 seconds per generated clip; their resolution is fixed by model code.
+- Video remake and product-intro settings therefore use a 5-second minimum while those selectable models remain active.
 - Initial generation, retry, cancellation, partial failure, and completed states must be distinguishable.
 - Run real smoke tests only after explicit approval to spend external API credits.
 
@@ -37,6 +38,8 @@
 - Modify: `features/video-remake/lib/frames.test.ts`
 - Modify: `app/api/video-remake/analyze/route.ts`
 - Modify: `app/api/video-remake/analyze/route.test.ts`
+- Modify: `lib/grsai/video-script.ts`
+- Modify: `lib/grsai/video-script.test.ts`
 
 **Interfaces:**
 - Produces: one selected `modelImage: File | null` in page state.
@@ -61,16 +64,16 @@ Expected: retry preservation and model-file assertions fail against the current 
 
 Add one model-image uploader using the existing product-image preprocessing path. Initial generation may create all default tasks; retry must dispatch a target-only action before calling `runSceneBatch([scene])`. The reducer maps only the matching `sceneId` to a queued task and leaves every other object unchanged.
 
-- [ ] **Step 4: Write failing duration and decoded-frame validation tests**
+- [ ] **Step 4: Write failing provider-duration and decoded-frame validation tests**
 
-Cover an actual decoded duration of `90.01` seconds and assert a visible `参考视频不能超过 90 秒` failure before any analysis request. Add an analyze-route test whose JPEG MIME body is not decodable and assert HTTP 400 with the normalized image validation error.
+Cover an actual decoded duration of `90.01` seconds and assert a visible `参考视频不能超过 90 秒` failure before any analysis request. Assert the selected nd model workflow accepts 5 seconds and rejects 4 seconds, and its analysis prompt requires each scene to be 5–15 seconds. Add an analyze-route test whose JPEG MIME body is not decodable and assert HTTP 400 with the normalized image validation error.
 
 - [ ] **Step 5: Run validation tests and verify RED**
 
 Run:
 
 ```powershell
-npx vitest run features/video-remake/lib/frames.test.ts app/api/video-remake/analyze/route.test.ts --exclude '.worktrees/**'
+npx vitest run features/video-remake/model.test.ts features/video-remake/lib/frames.test.ts app/api/video-remake/analyze/route.test.ts lib/grsai/video-script.test.ts --exclude '.worktrees/**'
 ```
 
 - [ ] **Step 6: Enforce the real 90-second and decoded-image boundaries**
@@ -106,6 +109,8 @@ Expected: all tests pass without an external request.
 - Modify: `features/product-video/lib/script.test.ts`
 - Modify: `app/api/product-video/merge/route.ts`
 - Modify: `app/api/product-video/merge/route.test.ts`
+- Modify: `lib/jimeng/video.ts`
+- Modify: `lib/jimeng/video.test.ts`
 
 **Interfaces:**
 - Produces: target-only `shot_retry_started` transitions.
@@ -128,21 +133,21 @@ npx vitest run features/product-video/state.test.ts features/product-video/model
 
 Do not dispatch the full `generation_started` action from `handleRetry`. Return final tasks from the batch or derive them from reducer updates, then dispatch a completion action carrying the task outcomes so the reducer selects the correct phase.
 
-- [ ] **Step 4: Write failing 4-second boundary tests**
+- [ ] **Step 4: Write failing provider-contract tests**
 
-Assert that total duration `4` and shot duration `4` parse successfully while `3` fails. Assert the generated analysis prompt states `4–15 秒`, not `5–15 秒`.
+Assert that the two selectable nd models accept clip durations 5 and 15 and reject 4 and 16 before fetch. Preserve the provider's flat `task_id` submission response, `GET /tasks/{id}`, `completed`/`success` terminal states, and `result`/`result_url`/`video_url` URL fallbacks.
 
 - [ ] **Step 5: Run timing tests and verify RED**
 
 Run:
 
 ```powershell
-npx vitest run features/product-video/model.test.ts features/product-video/lib/script.test.ts --exclude '.worktrees/**'
+npx vitest run features/product-video/model.test.ts features/product-video/lib/script.test.ts lib/jimeng/video.test.ts --exclude '.worktrees/**'
 ```
 
-- [ ] **Step 6: Align schema, UI, and prompt timing**
+- [ ] **Step 6: Align the shared provider client with model limits**
 
-Change only the lower bounds required by the approved specification. Keep maximum values and total-duration tolerance unchanged.
+Keep the product-video schema/UI/prompt at 5..15 seconds for selectable nd models. Add minimal model-aware validation in `submitVideoTask`; do not apply the nd limit to other documented models such as `dvc-seedance-2.5`.
 
 - [ ] **Step 7: Write failing ffmpeg-readiness tests**
 
@@ -224,7 +229,7 @@ Use glob patterns that exclude `.worktrees/**` and `**/tests/e2e/**`. Do not cha
 
 - [ ] **Step 3: Add mocked browser workflows**
 
-Video remake must cover model upload, a rejected over-90-second path at component level, two-scene generation, one failure, retry, and preserved first result. Product video must cover the 4-second boundary, mixed result state, retry preservation, ZIP, and merge request. Clothing uses its existing two-stage mocked workflow.
+Video remake must cover model upload, a rejected over-90-second path at component level, the 5-second provider boundary, two-scene generation, one failure, retry, and preserved first result. Product video must cover the 5-second boundary, mixed result state, retry preservation, ZIP, and merge request. Clothing uses its existing two-stage mocked workflow.
 
 - [ ] **Step 4: Run the complete verification matrix**
 
