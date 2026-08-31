@@ -1,4 +1,4 @@
-import { verifyVideoJobToken, signClipUrl } from "@/lib/download-token";
+import { verifyVideoJobToken, signClipUrl, signKeyframeUrl } from "@/lib/download-token";
 import { clipDownloadUrl } from "@/features/video-remake/lib/urls";
 import { VideoApiError, getVideoTask } from "@/lib/jimeng/video";
 
@@ -45,7 +45,7 @@ export async function GET(request: Request, context: RouteContext) {
         },
       });
     }
-    const keyframeToken = signClipUrl(verified.keyframeUrl, tokenSecret);
+    const keyframeToken = signKeyframeUrl(verified.keyframeUrl, tokenSecret);
     const downloadToken = signClipUrl(status.resultUrl, tokenSecret);
     return Response.json({
       task: {

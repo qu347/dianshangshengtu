@@ -6,7 +6,7 @@ import { resolveKeyframeUrl } from "@/features/video-remake/lib/keyframe";
 import { clipDownloadUrl } from "@/features/video-remake/lib/urls";
 import { languageDisplayName } from "@/lib/grsai/video-script";
 import { GrsaiError } from "@/lib/grsai/errors";
-import { signClipUrl, signVideoJobToken } from "@/lib/download-token";
+import { signKeyframeUrl, signVideoJobToken } from "@/lib/download-token";
 import { submitVideoTask, VideoApiError, VIDEO_QUALITY_MODELS } from "@/lib/jimeng/video";
 import {
   PayloadTooLargeError,
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
         model: VIDEO_QUALITY_MODELS[settings.quality],
         resolution: settings.quality,
       });
-      const keyframeToken = signClipUrl(keyframeUrl, tokenSecret);
+      const keyframeToken = signKeyframeUrl(keyframeUrl, tokenSecret);
       return Response.json({
         task: {
           sceneId: scene.id,

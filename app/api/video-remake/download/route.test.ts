@@ -1,14 +1,18 @@
 // @vitest-environment node
 
 import { beforeEach, expect, it, vi } from "vitest";
-import { signClipUrl } from "@/lib/download-token";
-import { fetchPublicVideo } from "@/lib/remote-image";
+import { signClipUrl, signKeyframeUrl } from "@/lib/download-token";
+import { fetchPublicImage, fetchPublicVideo } from "@/lib/remote-image";
+import { normalizeUploadedImage } from "@/lib/product-image-validation";
 import { GET } from "./route";
 
-vi.mock("@/lib/remote-image", () => ({ fetchPublicVideo: vi.fn() }));
+vi.mock("@/lib/remote-image", () => ({ fetchPublicImage: vi.fn(), fetchPublicVideo: vi.fn() }));
+vi.mock("@/lib/product-image-validation", () => ({ normalizeUploadedImage: vi.fn() }));
 
 const secret = "test-secret";
 const mp4 = Buffer.from("video-bytes");
+const png = Buffer.from("png-bytes");
+const webp = Buffer.from("webp-bytes");
 
 function requestFor(token: string, inline = false) {
   const url = new URL("http://localhost/api/video-remake/download");
@@ -21,6 +25,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.DOWNLOAD_TOKEN_SECRET = secret;
   vi.mocked(fetchPublicVideo).mockResolvedValue(mp4);
+  vi.mocked(fetchPublicImage).mockResolvedValue(png);
+  vi.mocked(normalizeUploadedImage).mockResolvedValue(webp);
 });
 
 it("returns 503 without the signing secret", async () => {
@@ -42,11 +48,25 @@ it("proxies the clip as an mp4 attachment with private no-store headers", async 
   const response = await GET(requestFor(token));
 
   expect(fetchPublicVideo).toHaveBeenCalledWith("https://cdn.example/clip.mp4");
+  expect(fetchPublicImage).not.toHaveBeenCalled();
   expect(response.status).toBe(200);
   expect(response.headers.get("Content-Type")).toBe("video/mp4");
   expect(response.headers.get("Content-Disposition")).toBe("attachment; filename=\"video-clip.mp4\"");
   expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   expect(Buffer.from(await response.arrayBuffer())).toEqual(mp4);
+});
+
+it("proxies a keyframe through the image path as normalized webp, never as video", async () => {
+  const token = signKeyframeUrl("https://cdn.example/keyframe.png", secret);
+  const response = await GET(requestFor(token, true));
+
+  expect(fetchPublicImage).toHaveBeenCalledWith("https://cdn.example/keyframe.png");
+  expect(fetchPublicVideo).not.toHaveBeenCalled();
+  expect(normalizeUploadedImage).toHaveBeenCalledWith(png);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("Content-Type")).toBe("image/webp");
+  expect(response.headers.get("Content-Disposition")).toBe("inline; filename=\"video-keyframe.webp\"");
+  expect(Buffer.from(await response.arrayBuffer())).toEqual(webp);
 });
 
 it("marks inline requests and maps fetch failures to a proxy error", async () => {

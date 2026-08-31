@@ -111,7 +111,13 @@ type ClipPayload = {
   exp: number;
 };
 
-function signPayload(payload: DownloadPayload | JobPayload | VideoJobPayload | ClipPayload, secret: string) {
+type KeyframePayload = {
+  kind: "keyframe";
+  url: string;
+  exp: number;
+};
+
+function signPayload(payload: DownloadPayload | JobPayload | VideoJobPayload | ClipPayload | KeyframePayload, secret: string) {
   const payloadPart = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signaturePart = signatureFor(payloadPart, secret).toString("base64url");
   return `${payloadPart}.${signaturePart}`;
@@ -254,6 +260,7 @@ const CLIP_TOKEN_TTL_SECONDS = 60 * 60;
 
 export type VideoJobToken = string & { readonly videoJobTokenBrand: true };
 export type ClipToken = string & { readonly clipTokenBrand: true };
+export type KeyframeToken = string & { readonly keyframeTokenBrand: true };
 
 function isBoundedShortText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= 32;
@@ -318,6 +325,33 @@ export function signClipUrl(
 ): ClipToken {
   requireHttps(url);
   return signPayload({ kind: "clip", url, exp: nowSeconds + ttlSeconds }, secret) as ClipToken;
+}
+
+export function signKeyframeUrl(
+  url: string,
+  secret: string,
+  nowSeconds = Math.floor(Date.now() / 1_000),
+  ttlSeconds = CLIP_TOKEN_TTL_SECONDS,
+): KeyframeToken {
+  requireHttps(url);
+  return signPayload({ kind: "keyframe", url, exp: nowSeconds + ttlSeconds }, secret) as KeyframeToken;
+}
+
+export function verifyMediaToken(
+  token: string,
+  secret: string,
+  nowSeconds = Math.floor(Date.now() / 1_000),
+): { kind: "clip" | "keyframe"; url: string } {
+  const payload = verifySignedPayload(token, secret, "媒体令牌无效");
+  if (
+    (payload.kind !== "clip" && payload.kind !== "keyframe")
+    || typeof payload.url !== "string"
+    || !isHttpsUrl(payload.url)
+  ) {
+    throw new Error("媒体令牌无效");
+  }
+  requireUnexpired(payload.exp, nowSeconds, "媒体令牌已过期");
+  return { kind: payload.kind, url: payload.url };
 }
 
 export function verifyClipToken(

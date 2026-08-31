@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { beforeEach, expect, it, vi } from "vitest";
-import { signVideoJobToken, verifyClipToken } from "@/lib/download-token";
+import { signVideoJobToken, verifyClipToken, verifyMediaToken } from "@/lib/download-token";
 import { getVideoTask, VideoApiError } from "@/lib/jimeng/video";
 import { GET } from "./route";
 
@@ -71,7 +71,8 @@ it("signs same-origin preview and download urls for a succeeded task", async () 
   expect(resultUrl.pathname).toBe("/api/video-remake/download");
   expect(resultUrl.searchParams.get("inline")).toBe("1");
   expect(verifyClipToken(body.task.downloadToken, secret)).toEqual({ url: "https://cdn.example/clip.mp4" });
-  expect(verifyClipToken(body.task.keyframeToken, secret)).toEqual({ url: "https://cdn.example/kf.png" });
+  expect(verifyMediaToken(body.task.keyframeToken, secret)).toEqual({ kind: "keyframe", url: "https://cdn.example/kf.png" });
+  expect(() => verifyClipToken(body.task.keyframeToken, secret)).toThrow("媒体令牌无效");
 });
 
 it("maps a provider failure to a terminal failed task", async () => {

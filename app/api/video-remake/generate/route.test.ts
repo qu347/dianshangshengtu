@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { beforeEach, expect, it, vi } from "vitest";
-import { verifyVideoJobToken } from "@/lib/download-token";
+import { verifyMediaToken, verifyVideoJobToken } from "@/lib/download-token";
 import { resolveKeyframeUrl } from "@/features/video-remake/lib/keyframe";
 import { submitVideoTask, VideoApiError } from "@/lib/jimeng/video";
 import { POST } from "./route";
@@ -98,6 +98,10 @@ it("submits the video task with the resolved keyframe and returns a signed runni
   const keyframeUrl = new URL(body.task.keyframeUrl);
   expect(keyframeUrl.pathname).toBe("/api/video-remake/download");
   expect(keyframeUrl.searchParams.get("inline")).toBe("1");
+  expect(verifyMediaToken(body.task.keyframeToken, "download-secret")).toEqual({
+    kind: "keyframe",
+    url: "https://cdn.example/kf.png",
+  });
 });
 
 it("returns a retryable failed task when the keyframe cannot be resolved", async () => {
