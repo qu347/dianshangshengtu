@@ -131,3 +131,19 @@ export async function validateGeneratedImage(
     return { ok: false, error: "白底商品主图不是纯白背景，请重试此图" };
   }
 }
+
+// Uploaded images are re-decoded server-side before any paid provider call:
+// bytes that survive the magic-number check but cannot actually be decoded are
+// rejected here, and decodable images are re-encoded to a bounded webp so the
+// provider payload and base64 memory footprint stay small.
+export async function normalizeUploadedImage(input: Buffer) {
+  try {
+    return await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
+      .rotate()
+      .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer();
+  } catch {
+    throw new Error("图片格式或大小不符合要求");
+  }
+}

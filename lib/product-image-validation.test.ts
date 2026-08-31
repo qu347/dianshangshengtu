@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
   hasPureWhiteOuterBand,
   isWhiteBackgroundImage,
+  normalizeUploadedImage,
   normalizeWhiteBackground,
   validateGeneratedImage,
 } from "./product-image-validation";
@@ -111,5 +112,36 @@ describe("white-background validation", () => {
       fetchImage,
     )).resolves.toEqual({ ok: true });
     expect(fetchImage).not.toHaveBeenCalled();
+  });
+});
+
+describe("normalizeUploadedImage", () => {
+  it("re-encodes a decodable upload to webp", async () => {
+    const png = await sharp({
+      create: { width: 40, height: 40, channels: 3, background: "#eeeeee" },
+    }).png().toBuffer();
+
+    const normalized = await normalizeUploadedImage(png);
+
+    await expect(sharp(normalized).metadata()).resolves.toMatchObject({ format: "webp" });
+  });
+
+  it("downscales an upload whose long edge exceeds 2048", async () => {
+    const oversized = await sharp({
+      create: { width: 2500, height: 1200, channels: 3, background: "#eeeeee" },
+    }).png().toBuffer();
+
+    const normalized = await normalizeUploadedImage(oversized);
+
+    await expect(sharp(normalized).metadata()).resolves.toMatchObject({ width: 2048, height: 983 });
+  });
+
+  it("rejects bytes that survive the magic-number check but cannot decode", async () => {
+    const fake = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.from("this is not really a png"),
+    ]);
+
+    await expect(normalizeUploadedImage(fake)).rejects.toThrow("图片格式或大小不符合要求");
   });
 });

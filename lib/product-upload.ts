@@ -13,11 +13,45 @@ export function validateProductPostRequest(request: Request) {
   return null;
 }
 
+export class PayloadTooLargeError extends Error {
+  constructor() {
+    super("请求体不能超过 36 MB");
+    this.name = "PayloadTooLargeError";
+  }
+}
+
+// The declared Content-Length header is client-controlled and absent for
+// chunked bodies, so the byte cap is enforced while the stream is consumed.
+export async function readBoundedFormData(request: Request): Promise<FormData> {
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error("请求体为空");
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxRequestBytes) {
+        await reader.cancel("请求体超过上限");
+        throw new PayloadTooLargeError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Blob(chunks as unknown as BlobPart[], { type: request.headers.get("Content-Type") ?? "" });
+  return await new Request("http://localhost/product-upload", { method: "POST", body }).formData();
+}
+
 function startsWith(bytes: Uint8Array, signature: readonly number[]) {
   return signature.every((value, index) => bytes[index] === value);
 }
 
-async function hasMatchingImageSignature(file: File) {
+export async function hasMatchingImageSignature(file: File) {
   const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
   if (file.type === "image/jpeg") return startsWith(bytes, [0xff, 0xd8, 0xff]);
   if (file.type === "image/png") return startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
