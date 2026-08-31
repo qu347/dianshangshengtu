@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { defaultClothingSettings, makeClothingAnalysis } from "@/features/clothing-studio/test-fixtures";
 import { signDownloadUrl, verifyDownloadToken, verifyJobToken } from "@/lib/download-token";
+import { ClothingPayloadTooLargeError, readBoundedClothingFormData } from "@/lib/clothing-upload";
 import { buildClothingGenerationPrompt } from "@/lib/grsai/clothing-images";
 import { submitImageGeneration } from "@/lib/grsai/images";
 import { createClothingRenderConfig } from "@/lib/clothing-render-config";
@@ -12,6 +13,13 @@ import { fetchPublicImage } from "@/lib/remote-image";
 import { POST } from "./route";
 
 vi.mock("@/lib/grsai/images", () => ({ submitImageGeneration: vi.fn() }));
+vi.mock("@/lib/clothing-upload", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/clothing-upload")>();
+  return {
+    ...actual,
+    readBoundedClothingFormData: vi.fn((request: Request) => request.formData()),
+  };
+});
 vi.mock("@/lib/product-image-result", () => ({ prepareGeneratedImageResult: vi.fn() }));
 vi.mock("@/lib/product-image-validation", () => ({ normalizeWhiteBackground: vi.fn() }));
 vi.mock("@/lib/remote-image", () => ({ fetchPublicImage: vi.fn() }));
@@ -78,6 +86,16 @@ it("keeps image one garment-only and rejects all dependent references", async ()
   const response = await POST(request(form({ model: true })));
   expect(response.status).toBe(400);
   expect(await response.json()).toEqual({ error: "第 1 张只能使用服装参考图" });
+  expect(submitImageGeneration).not.toHaveBeenCalled();
+});
+
+it("returns 413 when the streamed multipart body exceeds 48 MB", async () => {
+  vi.mocked(readBoundedClothingFormData).mockRejectedValueOnce(new ClothingPayloadTooLargeError());
+
+  const response = await POST(request(form()));
+
+  expect(response.status).toBe(413);
+  expect(await response.json()).toEqual({ error: "请求体不能超过 48 MB" });
   expect(submitImageGeneration).not.toHaveBeenCalled();
 });
 

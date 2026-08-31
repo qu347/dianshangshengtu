@@ -2,7 +2,9 @@
 
 import { expect, it } from "vitest";
 import {
+  ClothingPayloadTooLargeError,
   clothingRequestHeaders,
+  readBoundedClothingFormData,
   validateClothingImages,
   validateClothingPostRequest,
 } from "./clothing-upload";
@@ -17,6 +19,34 @@ function garmentForm(count: number, bytes: BlobPart = webpSignature, type = "ima
     form.append("garments", new File([bytes], `${index}.webp`, { type }));
   }
   return form;
+}
+
+function oversizedStreamingRequest(contentLength?: string, cancelFails = false) {
+  const chunk = new Uint8Array(1024 * 1024);
+  let sentChunks = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sentChunks < 49) {
+        controller.enqueue(chunk);
+        sentChunks += 1;
+        return;
+      }
+      controller.close();
+    },
+    cancel() {
+      if (cancelFails) return Promise.reject(new Error("cancel failed"));
+    },
+  });
+  return new Request("http://localhost/api/clothing/analyze", {
+    method: "POST",
+    headers: {
+      ...clothingRequestHeaders,
+      "Content-Type": "multipart/form-data; boundary=bounded-test",
+      ...(contentLength ? { "Content-Length": contentLength } : {}),
+    },
+    body,
+    duplex: "half",
+  } as RequestInit);
 }
 
 it("requires the private clothing header before reading multipart data", () => {
@@ -40,6 +70,21 @@ it("rejects a declared body larger than 48 MB", () => {
   });
 
   expect(validateClothingPostRequest(request)?.status).toBe(413);
+});
+
+it("rejects an oversized streaming body without Content-Length", async () => {
+  await expect(readBoundedClothingFormData(oversizedStreamingRequest()))
+    .rejects.toBeInstanceOf(ClothingPayloadTooLargeError);
+});
+
+it("rejects an oversized streaming body with a forged small Content-Length", async () => {
+  await expect(readBoundedClothingFormData(oversizedStreamingRequest("1")))
+    .rejects.toMatchObject({ message: "请求体不能超过 48 MB" });
+});
+
+it("keeps the 413 error when cancelling the oversized stream fails", async () => {
+  await expect(readBoundedClothingFormData(oversizedStreamingRequest(undefined, true)))
+    .rejects.toBeInstanceOf(ClothingPayloadTooLargeError);
 });
 
 it("requires 1-6 valid garment files", async () => {

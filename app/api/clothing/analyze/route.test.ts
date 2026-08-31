@@ -3,10 +3,18 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { defaultClothingSettings, makeClothingAnalysis } from "@/features/clothing-studio/test-fixtures";
 import { resolveClothingReference } from "@/lib/clothing-reference";
+import { ClothingPayloadTooLargeError, readBoundedClothingFormData } from "@/lib/clothing-upload";
 import { analyzeClothing } from "@/lib/grsai/clothing-analysis";
 import { POST } from "./route";
 
 vi.mock("@/lib/clothing-reference", () => ({ resolveClothingReference: vi.fn() }));
+vi.mock("@/lib/clothing-upload", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/clothing-upload")>();
+  return {
+    ...actual,
+    readBoundedClothingFormData: vi.fn((request: Request) => request.formData()),
+  };
+});
 vi.mock("@/lib/grsai/clothing-analysis", () => ({ analyzeClothing: vi.fn() }));
 
 const webp = new Uint8Array([
@@ -66,6 +74,16 @@ it("converts garments and resolves exactly one model plus an optional scene", as
 it("rejects missing or excessive garments before calling the provider", async () => {
   expect((await POST(request(form({ garmentCount: 0 })))).status).toBe(400);
   expect((await POST(request(form({ garmentCount: 7 })))).status).toBe(400);
+  expect(analyzeClothing).not.toHaveBeenCalled();
+});
+
+it("returns 413 when the streamed multipart body exceeds 48 MB", async () => {
+  vi.mocked(readBoundedClothingFormData).mockRejectedValueOnce(new ClothingPayloadTooLargeError());
+
+  const response = await POST(request(form()));
+
+  expect(response.status).toBe(413);
+  expect(await response.json()).toEqual({ error: "请求体不能超过 48 MB" });
   expect(analyzeClothing).not.toHaveBeenCalled();
 });
 

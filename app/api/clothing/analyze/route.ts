@@ -1,6 +1,11 @@
 import { ClothingGenerationSettingsSchema } from "@/features/clothing-studio/model";
 import { resolveClothingReference } from "@/lib/clothing-reference";
-import { validateClothingImages, validateClothingPostRequest } from "@/lib/clothing-upload";
+import {
+  ClothingPayloadTooLargeError,
+  readBoundedClothingFormData,
+  validateClothingImages,
+  validateClothingPostRequest,
+} from "@/lib/clothing-upload";
 import { analyzeClothing } from "@/lib/grsai/clothing-analysis";
 import { GrsaiError } from "@/lib/grsai/errors";
 import { z, ZodError } from "zod";
@@ -16,7 +21,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const form = await request.formData();
+    const form = await readBoundedClothingFormData(request);
     const validated = await validateClothingImages(form, "garments", {
       min: 1,
       max: 6,
@@ -61,6 +66,9 @@ export async function POST(request: Request) {
     const analysis = await analyzeClothing({ garments, model, scene, settings, requirements });
     return Response.json({ analysis });
   } catch (error) {
+    if (error instanceof ClothingPayloadTooLargeError) {
+      return Response.json({ error: error.message }, { status: 413 });
+    }
     if (error instanceof GrsaiError) {
       return Response.json({ error: error.message }, { status: error.status });
     }

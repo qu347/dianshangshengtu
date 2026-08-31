@@ -3,7 +3,12 @@ import { ClothingGenerationPlanItemSchema } from "@/features/clothing-studio/lib
 import { createClothingRenderConfig } from "@/lib/clothing-render-config";
 import { whiteBackgroundOptionsFor } from "@/lib/image-render-config";
 import { resolveClothingReference } from "@/lib/clothing-reference";
-import { validateClothingImages, validateClothingPostRequest } from "@/lib/clothing-upload";
+import {
+  ClothingPayloadTooLargeError,
+  readBoundedClothingFormData,
+  validateClothingImages,
+  validateClothingPostRequest,
+} from "@/lib/clothing-upload";
 import { signDownloadUrl, signJobToken, verifyDownloadToken } from "@/lib/download-token";
 import { buildClothingGenerationPrompt } from "@/lib/grsai/clothing-images";
 import { GrsaiError } from "@/lib/grsai/errors";
@@ -35,7 +40,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const form = await request.formData();
+    const form = await readBoundedClothingFormData(request);
     const validated = await validateClothingImages(form, "garments", {
       min: 1,
       max: 6,
@@ -150,6 +155,9 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof ClothingPayloadTooLargeError) {
+      return Response.json({ error: error.message }, { status: 413 });
+    }
     if (error instanceof GrsaiError) {
       return Response.json({ error: error.message }, { status: error.status });
     }

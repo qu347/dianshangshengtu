@@ -14,6 +14,44 @@ export function validateClothingPostRequest(request: Request) {
   return null;
 }
 
+export class ClothingPayloadTooLargeError extends Error {
+  constructor() {
+    super("请求体不能超过 48 MB");
+    this.name = "ClothingPayloadTooLargeError";
+  }
+}
+
+export async function readBoundedClothingFormData(request: Request): Promise<FormData> {
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error("请求体为空");
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxRequestBytes) {
+        try {
+          await reader.cancel("请求体超过上限");
+        } catch {
+          // Cancellation is best-effort; the stable 413 error remains authoritative.
+        }
+        throw new ClothingPayloadTooLargeError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Blob(chunks as unknown as BlobPart[], {
+    type: request.headers.get("Content-Type") ?? "",
+  });
+  return new Request("http://localhost/clothing-upload", { method: "POST", body }).formData();
+}
+
 function startsWith(bytes: Uint8Array, signature: readonly number[]) {
   return signature.every((value, index) => bytes[index] === value);
 }
