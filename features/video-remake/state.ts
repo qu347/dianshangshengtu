@@ -6,7 +6,10 @@ export type VideoRemakePhase =
   | "analyzing"
   | "reviewing_script"
   | "generating"
-  | "completed";
+  | "completed"
+  | "partial_failed"
+  | "failed"
+  | "cancelled";
 
 export type VideoRemakeState = {
   phase: VideoRemakePhase;
@@ -51,8 +54,8 @@ export type VideoRemakeAction =
   | { type: "generation_started"; tasks: VideoSceneTask[] }
   | { type: "scene_retry_started"; sceneId: string }
   | { type: "scene_changed"; task: VideoSceneTask }
-  | { type: "generation_completed" }
-  | { type: "generation_cancelled" }
+  | { type: "generation_completed"; tasks: VideoSceneTask[] }
+  | { type: "generation_cancelled"; tasks: VideoSceneTask[] }
   | { type: "notice"; message: string | null };
 
 export function videoRemakeReducer(state: VideoRemakeState, action: VideoRemakeAction): VideoRemakeState {
@@ -101,10 +104,16 @@ export function videoRemakeReducer(state: VideoRemakeState, action: VideoRemakeA
     return { ...state, phase: "generating", tasks: state.tasks.map((task) => task.sceneId === action.task.sceneId ? action.task : task) };
   }
   if (action.type === "generation_completed") {
-    return { ...state, phase: "completed" };
+    const failedTasks = action.tasks.filter((task) => task.status === "failed").length;
+    const phase = failedTasks === 0
+      ? "completed"
+      : failedTasks === action.tasks.length
+        ? "failed"
+        : "partial_failed";
+    return { ...state, phase, tasks: action.tasks };
   }
   if (action.type === "generation_cancelled") {
-    return { ...state, phase: "completed", notice: "已取消未完成的分镜生成" };
+    return { ...state, phase: "cancelled", tasks: action.tasks, notice: "已取消未完成的分镜生成" };
   }
   if (action.type === "notice") {
     return { ...state, notice: action.message };

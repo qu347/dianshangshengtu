@@ -33,7 +33,9 @@ it("passes the selected normalized model image to scene generation", async () =>
   const normalizedProduct = new File(["normalized-product"], "product.webp", { type: "image/webp" });
   const normalizedModel = new File(["normalized-model"], "model.webp", { type: "image/webp" });
 
-  vi.mocked(extractVideoFrames).mockResolvedValue([{ file: new File(["frame"], "frame.jpg", { type: "image/jpeg" }), atSec: 4 }]);
+  vi.mocked(extractVideoFrames).mockResolvedValue(Object.assign([
+    { file: new File(["frame"], "frame.jpg", { type: "image/jpeg" }), atSec: 4 },
+  ], { durationSec: 5 }));
   vi.mocked(preprocessProductImage).mockResolvedValueOnce(normalizedProduct).mockResolvedValueOnce(normalizedModel);
   vi.mocked(analyzeScriptClient).mockResolvedValue({
     styleNotes: "warm studio",
@@ -53,5 +55,26 @@ it("passes the selected normalized model image to scene generation", async () =>
 
   await waitFor(() => expect(runSceneBatch).toHaveBeenCalledWith(expect.objectContaining({
     modelImage: normalizedModel,
+  })));
+});
+
+it("sends the real two-second decoded duration to analysis", async () => {
+  const referenceVideo = new File(["reference"], "reference.mp4", { type: "video/mp4" });
+  const frames = Object.assign([
+    { file: new File(["frame"], "frame.jpg", { type: "image/jpeg" }), atSec: 1.7 },
+  ], { durationSec: 2 });
+  vi.mocked(extractVideoFrames).mockResolvedValue(frames as Awaited<ReturnType<typeof extractVideoFrames>>);
+  vi.mocked(analyzeScriptClient).mockResolvedValue({
+    styleNotes: "warm studio",
+    scenes: [{ id: "1", title: "opening", description: "product closeup", onScreenText: "", durationSec: 15 }],
+  });
+
+  render(<VideoRemake />);
+  fireEvent.change(screen.getByLabelText("上传参考视频"), { target: { files: [referenceVideo] } });
+  await screen.findByText("已抽取 1 帧画面用于分析。");
+  fireEvent.click(screen.getByRole("button", { name: "开始分析视频" }));
+
+  await waitFor(() => expect(analyzeScriptClient).toHaveBeenCalledWith(expect.objectContaining({
+    videoDurationSec: 2,
   })));
 });

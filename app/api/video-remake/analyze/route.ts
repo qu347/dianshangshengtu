@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     }
 
     const videoDurationSec = Number(form.get("videoDurationSec"));
-    if (!Number.isFinite(videoDurationSec) || videoDurationSec < 0.5 || videoDurationSec > 600) {
+    if (!Number.isFinite(videoDurationSec) || videoDurationSec < 0.5 || videoDurationSec > 90) {
       return Response.json({ error: "参考视频时长无效" }, { status: 400 });
     }
 

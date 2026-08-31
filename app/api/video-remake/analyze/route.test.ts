@@ -72,6 +72,20 @@ it("rejects missing or oversized frames", async () => {
   expect((await POST(oversized)).status).toBe(400);
 });
 
+it("rejects a 91-second reference duration before analysis", async () => {
+  const form = analyzeForm();
+  form.set("videoDurationSec", "91");
+  const response = await POST(new Request("http://localhost/api/video-remake/analyze", {
+    method: "POST",
+    body: form,
+    headers: { "X-Product-Studio-Request": "1" },
+  }));
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: "参考视频时长无效" });
+  expect(analyzeVideoScript).not.toHaveBeenCalled();
+});
+
 it("rejects a JPEG MIME frame whose bytes cannot be decoded", async () => {
   const form = analyzeForm();
   form.set("frames", new File([new Uint8Array([0xff, 0xd8, 0xff])], "broken.jpg", { type: "image/jpeg" }));

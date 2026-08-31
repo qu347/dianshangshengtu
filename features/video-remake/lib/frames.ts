@@ -3,6 +3,8 @@ const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 90;
 const MAX_FRAME_EDGE = 1280;
 
+export type ExtractedVideoFrames = Array<{ file: File; atSec: number }> & { durationSec: number };
+
 export function validateReferenceVideo(file: File): string | null {
   if (!ACCEPTED_VIDEO_TYPES.has(file.type)) return "仅支持 MP4、WEBM 参考视频";
   if (file.size > MAX_VIDEO_BYTES) return "参考视频不能超过 150 MB";
@@ -54,7 +56,7 @@ function canvasToJpeg(video: HTMLVideoElement): Promise<File> {
 export async function extractVideoFrames(
   file: File,
   count = 6,
-): Promise<Array<{ file: File; atSec: number }>> {
+): Promise<ExtractedVideoFrames> {
   const url = URL.createObjectURL(file);
   const video = document.createElement("video");
   video.muted = true;
@@ -87,7 +89,7 @@ export async function extractVideoFrames(
       });
       index += 1;
     }
-    return frames;
+    return Object.assign(frames, { durationSec: duration });
   } finally {
     video.removeAttribute("src");
     video.load();

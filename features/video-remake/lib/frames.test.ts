@@ -45,4 +45,40 @@ it("rejects a decoded reference video longer than 90 seconds before extracting f
     .rejects.toThrow("参考视频不能超过 90 秒");
 });
 
+it("returns the decoded duration even when the last sample is earlier", async () => {
+  const video = new EventTarget() as HTMLVideoElement;
+  Object.defineProperties(video, {
+    duration: { value: 90 },
+    videoWidth: { value: 100 },
+    videoHeight: { value: 100 },
+    muted: { value: false, writable: true },
+    preload: { value: "", writable: true },
+    onloadedmetadata: { value: null, writable: true },
+    onerror: { value: null, writable: true },
+    currentTime: {
+      set: () => queueMicrotask(() => video.dispatchEvent(new Event("seeked"))),
+    },
+    src: {
+      set: () => queueMicrotask(() => video.onloadedmetadata?.(new Event("loadedmetadata"))),
+    },
+  });
+  Object.assign(video, { removeAttribute: vi.fn(), load: vi.fn() });
+  const canvas = {
+    width: 0,
+    height: 0,
+    getContext: () => ({ drawImage: vi.fn() }),
+    toBlob: (callback: BlobCallback) => callback(new Blob(["frame"], { type: "image/jpeg" })),
+  } as unknown as HTMLCanvasElement;
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:reference");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+  vi.spyOn(document, "createElement").mockImplementation(((tagName: string) => (
+    tagName === "video" ? video : canvas
+  )) as typeof document.createElement);
+
+  const frames = await extractVideoFrames(new File(["video"], "reference.mp4", { type: "video/mp4" }), 6);
+
+  expect((frames as typeof frames & { durationSec: number }).durationSec).toBe(90);
+  expect(frames.at(-1)?.atSec).toBeLessThan(90);
+});
+
 afterEach(() => vi.restoreAllMocks());

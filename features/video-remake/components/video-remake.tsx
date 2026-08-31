@@ -16,7 +16,7 @@ import { ScriptEditor } from "./script-editor";
 import { SceneGrid } from "./scene-grid";
 
 const steps = ["上传参考视频", "AI 分镜分析", "确认脚本", "生成视频", "完成"];
-const phaseSteps = { input: 0, analyzing: 1, reviewing_script: 2, generating: 3, completed: 4 } as const;
+const phaseSteps = { input: 0, analyzing: 1, reviewing_script: 2, generating: 3, completed: 4, partial_failed: 4, failed: 4, cancelled: 4 } as const;
 
 export function VideoRemake() {
   const [state, dispatch] = useReducer(videoRemakeReducer, initialVideoRemakeState);
@@ -44,7 +44,7 @@ export function VideoRemake() {
     setExtracting(true);
     try {
       const frames = await extractVideoFrames(file, 6);
-      dispatch({ type: "video_changed", video: file, frames, videoDurationSec: frames.at(-1)?.atSec ?? 0 });
+      dispatch({ type: "video_changed", video: file, frames, videoDurationSec: frames.durationSec });
     } catch (error) {
       dispatch({ type: "notice", message: error instanceof Error ? error.message : "视频处理失败" });
     } finally {
@@ -63,7 +63,7 @@ export function VideoRemake() {
     try {
       const script = await analyzeScriptClient({
         frameFiles: state.frames.map((frame) => frame.file),
-        videoDurationSec: Math.max(state.videoDurationSec, state.settings.durationSec),
+        videoDurationSec: state.videoDurationSec,
         productName: state.productName,
         requirements: state.requirements,
         settings: state.settings,
@@ -119,22 +119,34 @@ export function VideoRemake() {
     setGenerating(true);
     const controller = new AbortController();
     generationAbortRef.current = controller;
+    const startTasks = retrySceneId
+      ? state.tasks
+      : defaultSceneTasks({ styleNotes: state.script?.styleNotes ?? "", scenes });
+    let finalTasks = startTasks;
     if (retrySceneId) {
       dispatch({ type: "scene_retry_started", sceneId: retrySceneId });
     } else {
-      dispatch({ type: "generation_started", tasks: defaultSceneTasks({ styleNotes: state.script?.styleNotes ?? "", scenes }) });
+      dispatch({ type: "generation_started", tasks: startTasks });
     }
     try {
-      await runSceneBatch({
+      const batchTasks = await runSceneBatch({
         scenes,
         productImages: state.productImages,
         modelImage: state.modelImage,
         settings: state.settings,
         api: { submit: submitSceneClient, status: getSceneStatusClient },
-        onSceneChange: (task) => dispatch({ type: "scene_changed", task }),
+        onSceneChange: (task) => {
+          finalTasks = finalTasks.map((current) => current.sceneId === task.sceneId ? task : current);
+          dispatch({ type: "scene_changed", task });
+        },
         signal: controller.signal,
       });
-      dispatch({ type: controller.signal.aborted ? "generation_cancelled" : "generation_completed" });
+      for (const task of batchTasks) {
+        finalTasks = finalTasks.map((current) => current.sceneId === task.sceneId ? task : current);
+      }
+      dispatch(controller.signal.aborted
+        ? { type: "generation_cancelled", tasks: finalTasks }
+        : { type: "generation_completed", tasks: finalTasks });
     } finally {
       if (generationAbortRef.current === controller) generationAbortRef.current = null;
       generatingRef.current = false;
