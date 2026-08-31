@@ -113,7 +113,12 @@ export function videoRemakeReducer(state: VideoRemakeState, action: VideoRemakeA
     return { ...state, phase, tasks: action.tasks };
   }
   if (action.type === "generation_cancelled") {
-    return { ...state, phase: "cancelled", tasks: action.tasks, notice: "已取消未完成的分镜生成" };
+    const tasks = action.tasks.map((task) => (
+      task.status === "queued" || task.status === "submitting" || task.status === "running"
+        ? { ...task, status: "failed" as const, error: "已取消，可重试" }
+        : task
+    ));
+    return { ...state, phase: "cancelled", tasks, notice: "已取消未完成的分镜生成" };
   }
   if (action.type === "notice") {
     return { ...state, notice: action.message };

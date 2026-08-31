@@ -8,7 +8,7 @@ const defaultSleep = (milliseconds: number) => new Promise<void>((resolve) => {
 export async function pollSceneJob(input: {
   providerJobId: string;
   sceneId: string;
-  api: { status: (jobToken: string, sceneId: string) => Promise<VideoSceneTask> };
+  api: { status: (jobToken: string, sceneId: string, signal?: AbortSignal) => Promise<VideoSceneTask> };
   onSceneChange: (task: VideoSceneTask) => void;
   signal?: AbortSignal;
   sleep?: (milliseconds: number) => Promise<void>;
@@ -27,8 +27,9 @@ export async function pollSceneJob(input: {
     input.signal?.throwIfAborted();
     let task: VideoSceneTask;
     try {
-      task = await input.api.status(jobToken, input.sceneId);
+      task = await input.api.status(jobToken, input.sceneId, input.signal);
     } catch (error) {
+      if (input.signal?.aborted) throw error;
       if (error instanceof VideoRemakeApiError && !error.retryable) {
         const failed: VideoSceneTask = {
           sceneId: input.sceneId,
@@ -78,7 +79,7 @@ export async function runSceneBatch(input: {
   settings: VideoRemakeSettings;
   api: {
     submit: typeof submitSceneClient;
-    status: (jobToken: string, sceneId: string) => Promise<VideoSceneTask>;
+    status: (jobToken: string, sceneId: string, signal?: AbortSignal) => Promise<VideoSceneTask>;
   };
   onSceneChange: (task: VideoSceneTask) => void;
   signal?: AbortSignal;
@@ -91,6 +92,7 @@ export async function runSceneBatch(input: {
   let nextIndex = 0;
 
   async function runOne(scene: SceneScript) {
+    input.signal?.throwIfAborted();
     input.onSceneChange({ sceneId: scene.id, status: "submitting", progress: 0 });
     try {
       const submitted = await input.api.submit({
@@ -98,6 +100,7 @@ export async function runSceneBatch(input: {
         modelImage: input.modelImage,
         scene,
         settings: input.settings,
+        signal: input.signal,
       });
       if (input.signal?.aborted) return;
       input.onSceneChange(submitted);

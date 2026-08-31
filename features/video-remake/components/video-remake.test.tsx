@@ -55,6 +55,7 @@ it("passes the selected normalized model image to scene generation", async () =>
 
   await waitFor(() => expect(runSceneBatch).toHaveBeenCalledWith(expect.objectContaining({
     modelImage: normalizedModel,
+    signal: expect.any(AbortSignal),
   })));
 });
 

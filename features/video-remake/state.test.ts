@@ -101,3 +101,40 @@ it("keeps cancellation distinct from completion while retaining final task value
   expect(next.phase).toBe("cancelled");
   expect(next.tasks[0]).toBe(succeeded);
 });
+
+it("makes unfinished cancelled scenes retryable without changing terminal task objects", () => {
+  const succeeded = {
+    sceneId: "1",
+    status: "succeeded" as const,
+    progress: 100,
+    resultUrl: "https://cdn.example/first.mp4",
+    downloadToken: "first-download-token",
+  };
+  const failed = { sceneId: "2", status: "failed" as const, progress: 30, error: "provider failed" };
+  const running = { sceneId: "3", status: "running" as const, progress: 40, providerJobId: "job-3" };
+  const queued = { sceneId: "4", status: "queued" as const, progress: 0 };
+  const state = {
+    phase: "generating",
+    referenceVideo: null,
+    frames: [],
+    videoDurationSec: 0,
+    modelImage: null,
+    productImages: [],
+    productName: "",
+    requirements: "",
+    settings: { aspectRatio: "9:16", durationSec: 15, language: "zh-CN", quality: "480p" },
+    script: null,
+    tasks: [succeeded, failed, running, queued],
+    notice: null,
+  } satisfies VideoRemakeState;
+
+  const next = videoRemakeReducer(state, { type: "generation_cancelled", tasks: state.tasks });
+
+  expect(next.phase).toBe("cancelled");
+  expect(next.tasks[0]).toBe(succeeded);
+  expect(next.tasks[1]).toBe(failed);
+  expect(next.tasks.slice(2)).toEqual([
+    { ...running, status: "failed", error: "已取消，可重试" },
+    { ...queued, status: "failed", error: "已取消，可重试" },
+  ]);
+});

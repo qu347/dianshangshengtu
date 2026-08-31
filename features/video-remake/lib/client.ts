@@ -48,6 +48,7 @@ export async function submitSceneClient(input: {
   modelImage: File | null;
   scene: SceneScript;
   settings: VideoRemakeSettings;
+  signal?: AbortSignal;
 }): Promise<VideoSceneTask> {
   const form = new FormData();
   input.productImages.forEach((file) => form.append("images", file));
@@ -59,6 +60,7 @@ export async function submitSceneClient(input: {
     method: "POST",
     body: form,
     headers: productRequestHeaders,
+    signal: input.signal,
   });
   const body = await response.json();
   if (!response.ok) throw new VideoRemakeApiError(body.error ?? "提交视频任务失败", response.status);
@@ -66,9 +68,10 @@ export async function submitSceneClient(input: {
   return VideoSceneTaskSchema.parse(body.task);
 }
 
-export async function getSceneStatusClient(jobToken: string, sceneId: string): Promise<VideoSceneTask> {
+export async function getSceneStatusClient(jobToken: string, sceneId: string, signal?: AbortSignal): Promise<VideoSceneTask> {
   const response = await fetch(`/api/video-remake/jobs/${encodeURIComponent(jobToken)}`, {
     headers: productRequestHeaders,
+    signal,
   });
   const body = await response.json();
   if (!response.ok) throw new VideoRemakeApiError(body.error ?? "查询视频任务失败", response.status);
