@@ -99,6 +99,7 @@ Expected: all tests pass without an external request.
 - Modify: `features/product-video/model.ts`
 - Modify: `features/product-video/model.test.ts`
 - Modify: `features/product-video/state.ts`
+- Create: `features/product-video/state.test.ts`
 - Modify: `features/product-video/components/product-video.tsx`
 - Modify: `features/product-video/components/product-video.test.tsx`
 - Modify: `features/product-video/lib/script.ts`
@@ -120,7 +121,7 @@ Use three literal tasks: two succeeded with distinct tokens and one failed. Retr
 Run:
 
 ```powershell
-npx vitest run features/product-video/model.test.ts features/product-video/components/product-video.test.tsx --exclude '.worktrees/**'
+npx vitest run features/product-video/state.test.ts features/product-video/model.test.ts features/product-video/components/product-video.test.tsx --exclude '.worktrees/**'
 ```
 
 - [ ] **Step 3: Implement target-only retry and derived completion**
