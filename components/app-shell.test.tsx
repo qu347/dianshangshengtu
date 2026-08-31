@@ -17,3 +17,12 @@ it("links the video remake module and highlights it when active", () => {
   expect(link).toHaveAttribute("aria-current", "page");
   expect(screen.getByRole("link", { name: "全品类商品图" })).not.toHaveAttribute("aria-current", "page");
 });
+
+it("links the product intro video module and highlights it when active", () => {
+  render(<AppShell active="product-video"><div>工作区</div></AppShell>);
+
+  const link = screen.getByRole("link", { name: "商品介绍视频" });
+  expect(link).toHaveAttribute("href", "/product-video");
+  expect(link).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("link", { name: "爆款视频复刻" })).not.toHaveAttribute("aria-current", "page");
+});
