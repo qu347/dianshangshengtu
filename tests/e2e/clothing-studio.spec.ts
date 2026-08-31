@@ -17,6 +17,9 @@ function multipartJson<T>(body: string, field: string) {
 }
 
 test("completes the mocked two-stage clothing workflow without product or Grsai calls", async ({ page }) => {
+  await page.route("**/api/**", (route) => {
+    throw new Error(`Unexpected API request: ${route.request().method()} ${route.request().url()}`);
+  });
   const png = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZPj8AAAAASUVORK5CYII=",
     "base64",

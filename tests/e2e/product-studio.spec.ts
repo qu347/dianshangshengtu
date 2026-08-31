@@ -19,6 +19,9 @@ function parseMultipartTextField(body: string, fieldName: string): string {
 }
 
 test("completes a two-image product workflow without real API calls", async ({ page }) => {
+  await page.route("**/api/**", (route) => {
+    throw new Error(`Unexpected API request: ${route.request().method()} ${route.request().url()}`);
+  });
   const productPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZPj8AAAAASUVORK5CYII=", "base64");
   const workflowAnalysis = {
     ...analysisWithTwoItems,

@@ -12,16 +12,19 @@ npm run dev
 
 Edit `.env.local` locally and enter your own Grsai API key plus a random `DOWNLOAD_TOKEN_SECRET`. Never paste keys or secret values into chat, and never commit `.env.local` or any other file containing secrets.
 
-本地包含两个独立模块：
+本地包含四个独立模块：
 
 - `http://localhost:3000/product-studio`：全品类商品图。
 - `http://localhost:3000/clothing-studio`：服装组图。
+- `http://localhost:3000/video-remake`：爆款视频复刻。
+- `http://localhost:3000/product-video`：商品介绍视频。
 
 Use a local environment file with secret values left blank until you configure them on your own machine:
 
 ```dotenv
 GRSAI_BASE_URL=https://grsai.dakka.com.cn
 GRSAI_API_KEY=
+VIDEO_API_KEY=
 DOWNLOAD_TOKEN_SECRET=
 ```
 
@@ -63,9 +66,15 @@ An optional text watermark is composited into generated results. Amazon image 1 
 
 候选图历史仅在当前页面生命周期中保留。刷新页面可以恢复已保存的最终规划和不透明任务编号，并继续查询未完成任务；浏览器不会持久化本地服装、模特或场景文件，因此刷新后若要重新提交或重试，需重新选择这些文件。
 
+## 视频生成流程
+
+爆款视频复刻会在浏览器本地抽取参考视频画面，再按分镜生成片段；参考视频可为 MP4 或 WebM，最长 90 秒。商品介绍视频根据商品图生成可编辑的介绍脚本，并可下载单镜头、ZIP 包或将至少两个成功镜头合并为一个视频。两个视频模块当前可选模型的单镜头时长为 5–15 秒。
+
+真实视频生成需要在本地 `.env.local` 配置 `VIDEO_API_KEY`。商品介绍视频的合并下载还需要可执行的 `FFMPEG_PATH`，或让可执行的 `ffmpeg` 位于系统 `PATH` 中。不要把任何密钥写入仓库。
+
 ## Tests
 
-自动化浏览器测试会 mock 商品与服装 API，不调用 Grsai，也不消耗积分：
+自动化浏览器测试会 mock 全品类商品图、服装组图、爆款视频复刻和商品介绍视频的全部页面 API；不会调用 Grsai、视频提供商或 ffmpeg，消耗零积分：
 
 ```powershell
 npx playwright install chromium
@@ -89,9 +98,11 @@ Leave `PLAYWRIGHT_CHANNEL` unset for the normal, officially installed Playwright
 
 ## Real smoke test
 
-只有在明确同意消耗 Grsai 积分后才执行真实冒烟测试：
+只有在明确授权消耗外部积分后才执行真实冒烟测试：
 
 - 全品类模块：上传 1 张有效产品图，将生成数量设为 1，确认单张结果可预览和下载。
 - 服装模块：上传 1 张服装图，只生成 1 张模特候选，最终图片数量设为 2；确认第 1 张为纯白背景的隐形模特式立体服装主图，第 2 张使用所选真人模特与第 1 张参考，且两张均可预览和下载。
+- 爆款视频复刻：确认参考视频时长和商品图后，只生成最小数量的分镜并下载片段。
+- 商品介绍视频：只生成最小数量的镜头；若要验证合并，确认本机 ffmpeg 可用后再请求合并下载。
 
-真实冒烟测试不要生成第 3 张图片，也不要额外生成模特或场景候选。
+真实冒烟测试会花费外部积分，且只能在显式授权后运行；自动化 E2E 始终全 mock、零积分。不要生成额外图片、候选或视频镜头。

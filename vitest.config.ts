@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react(), tsconfigPaths()],
   test: {
     environment: "jsdom",
-    exclude: [...configDefaults.exclude, "tests/e2e/**"],
+    exclude: [...configDefaults.exclude, ".worktrees/**", "**/.worktrees/**", "**/tests/e2e/**"],
     setupFiles: ["./vitest.setup.ts"],
     restoreMocks: true,
     globals: true,

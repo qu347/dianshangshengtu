@@ -36,7 +36,7 @@ type FfmpegMode = "ok" | "needs-fallback" | "always-fails";
 
 function mockFfmpeg(mode: FfmpegMode | "version-fails" = "ok") {
   let calls = 0;
-  (execFile as unknown as Mock).mockImplementation(async (...fnArgs: unknown[]) => {
+  (execFile as unknown as Mock).mockImplementation((...fnArgs: unknown[]) => {
     const args = fnArgs[1] as string[];
     const callback = fnArgs[fnArgs.length - 1] as (error: Error | null) => void;
     if (args.includes("-version")) {
@@ -48,8 +48,10 @@ function mockFfmpeg(mode: FfmpegMode | "version-fails" = "ok") {
       callback(new Error("ffmpeg exited non-zero"));
       return;
     }
-    await writeFile(args[args.length - 1], merged);
-    callback(null);
+    void writeFile(args[args.length - 1], merged).then(
+      () => callback(null),
+      (error: Error) => callback(error),
+    );
   });
 }
 
