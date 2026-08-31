@@ -1,4 +1,5 @@
 import type { SceneScript, VideoRemakeSettings, VideoSceneTask } from "../model";
+import type { ReferenceAsset } from "@/features/clothing-studio/model";
 import { VideoRemakeApiError, submitSceneClient } from "./client";
 
 const defaultSleep = (milliseconds: number) => new Promise<void>((resolve) => {
@@ -75,7 +76,7 @@ export async function pollSceneJob(input: {
 export async function runSceneBatch(input: {
   scenes: SceneScript[];
   productImages: File[];
-  modelImage: File | null;
+  modelImage: ReferenceAsset | null;
   settings: VideoRemakeSettings;
   api: {
     submit: typeof submitSceneClient;

@@ -7,6 +7,7 @@ import {
   type VideoScript,
 } from "../model";
 import { productRequestHeaders } from "@/lib/product-upload";
+import { validateReferenceAsset, type ReferenceAsset } from "@/features/clothing-studio/model";
 
 export class VideoRemakeApiError extends Error {
   readonly retryable: boolean;
@@ -45,14 +46,18 @@ export async function analyzeScriptClient(input: {
 
 export async function submitSceneClient(input: {
   productImages: File[];
-  modelImage: File | null;
+  modelImage: ReferenceAsset | null;
   scene: SceneScript;
   settings: VideoRemakeSettings;
   signal?: AbortSignal;
 }): Promise<VideoSceneTask> {
   const form = new FormData();
   input.productImages.forEach((file) => form.append("images", file));
-  if (input.modelImage) form.append("modelImage", input.modelImage);
+  if (input.modelImage) {
+    const model = validateReferenceAsset(input.modelImage);
+    if (model.source === "upload" && model.file) form.append("modelImage", model.file);
+    if (model.source === "generated" && model.downloadToken) form.append("modelToken", model.downloadToken);
+  }
   form.append("scene", JSON.stringify(input.scene));
   form.append("settings", JSON.stringify(input.settings));
 

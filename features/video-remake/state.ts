@@ -1,5 +1,6 @@
 import type { SceneScript, VideoRemakeSettings, VideoSceneTask, VideoScript } from "./model";
 import { VideoRemakeSettingsSchema } from "./model";
+import type { ReferenceAsset } from "@/features/clothing-studio/model";
 
 export type VideoRemakePhase =
   | "input"
@@ -16,7 +17,7 @@ export type VideoRemakeState = {
   referenceVideo: File | null;
   frames: Array<{ file: File; atSec: number }>;
   videoDurationSec: number;
-  modelImage: File | null;
+  modelImage: ReferenceAsset | null;
   productImages: File[];
   productName: string;
   requirements: string;
@@ -43,7 +44,7 @@ export const initialVideoRemakeState: VideoRemakeState = {
 
 export type VideoRemakeAction =
   | { type: "video_changed"; video: File | null; frames: Array<{ file: File; atSec: number }>; videoDurationSec: number }
-  | { type: "model_image_changed"; image: File | null }
+  | { type: "model_image_changed"; image: ReferenceAsset | null }
   | { type: "product_images_changed"; images: File[] }
   | { type: "text_changed"; productName?: string; requirements?: string }
   | { type: "settings_changed"; patch: Partial<VideoRemakeSettings> }

@@ -12,6 +12,13 @@ import { runSceneBatch } from "../lib/scene-runner";
 import { downloadAllScenes, downloadClip } from "../lib/downloads";
 import { extractVideoFrames, validateReferenceVideo } from "../lib/frames";
 import { preprocessProductImage, validateProductFiles } from "@/features/product-studio/lib/image-files";
+import {
+  getClothingGenerationStatusClient,
+  submitClothingCandidatesClient,
+} from "@/features/clothing-studio/lib/client-api";
+import type { ReferenceAsset } from "@/features/clothing-studio/model";
+import { ReferenceCard } from "@/features/clothing-studio/components/reference-card";
+import { ReferencePickerDialog } from "@/features/clothing-studio/components/reference-picker-dialog";
 import { ScriptEditor } from "./script-editor";
 import { SceneGrid } from "./scene-grid";
 
@@ -25,10 +32,22 @@ export function VideoRemake() {
   const [generating, setGenerating] = useState(false);
   const [downloadBusy, setDownloadBusy] = useState(false);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+  const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const generatingRef = useRef(false);
   const generationAbortRef = useRef<AbortController | null>(null);
+  const modelInputRef = useRef<HTMLInputElement | null>(null);
+  const ownedModelUrlsRef = useRef(new Set<string>());
 
   useEffect(() => () => generationAbortRef.current?.abort(), []);
+  useEffect(() => {
+    const model = state.modelImage;
+    const ownedUrls = ownedModelUrlsRef.current;
+    if (model?.source !== "upload" || !ownedUrls.has(model.previewUrl)) return;
+    return () => {
+      ownedUrls.delete(model.previewUrl);
+      URL.revokeObjectURL(model.previewUrl);
+    };
+  }, [state.modelImage]);
 
   async function handleVideoSelected(file: File | null) {
     if (generatingRef.current) return;
@@ -93,6 +112,7 @@ export function VideoRemake() {
 
   async function handleModelImage(selected: File | null) {
     if (generatingRef.current) return;
+    if (modelInputRef.current) modelInputRef.current.value = "";
     if (!selected) {
       dispatch({ type: "model_image_changed", image: null });
       return;
@@ -103,7 +123,17 @@ export function VideoRemake() {
       return;
     }
     try {
-      dispatch({ type: "model_image_changed", image: await preprocessProductImage(selected) });
+      const file = await preprocessProductImage(selected);
+      const previewUrl = URL.createObjectURL(file);
+      ownedModelUrlsRef.current.add(previewUrl);
+      const model: ReferenceAsset = {
+        id: `video-model-upload-${crypto.randomUUID()}`,
+        kind: "model",
+        source: "upload",
+        previewUrl,
+        file,
+      };
+      dispatch({ type: "model_image_changed", image: model });
     } catch (error) {
       dispatch({ type: "notice", message: error instanceof Error ? error.message : "图片处理失败" });
     }
@@ -246,27 +276,27 @@ export function VideoRemake() {
                 )}
               </section>
 
-              <section className="mt-4" aria-labelledby="video-model-image-title">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <h3 id="video-model-image-title" className="text-sm font-semibold text-[#343840]">模特图</h3>
-                  <span className="text-[11px] text-[#8b909a]">可选</span>
-                </div>
-                <label className="flex min-h-20 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#cfd3dc] bg-[#fafbfc] px-4 py-4 text-center transition hover:border-[#9b91e8] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
-                  <input
-                    className="sr-only"
-                    aria-label="上传模特图"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    disabled={inputsDisabled}
-                    onChange={(event) => void handleModelImage(event.currentTarget.files?.[0] ?? null)}
-                  />
-                  <span className="text-sm font-medium text-[#24272d]">选择模特图</span>
-                  <span className="mt-1 text-xs text-[#747984]">JPG、PNG、WEBP</span>
-                </label>
-                {state.modelImage && (
-                  <p className="mt-2 text-xs text-[#555a64]" role="status">已选择模特图。</p>
-                )}
-              </section>
+              <div className="mt-4">
+                <input
+                  ref={modelInputRef}
+                  className="sr-only"
+                  aria-label="选择本地模特图文件"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={inputsDisabled}
+                  onChange={(event) => void handleModelImage(event.currentTarget.files?.[0] ?? null)}
+                />
+                <ReferenceCard
+                  kind="model"
+                  value={state.modelImage}
+                  description="可选 · 所有分镜保持同一模特"
+                  disabled={inputsDisabled}
+                  onUpload={() => modelInputRef.current?.click()}
+                  onGenerate={() => setModelDialogOpen(true)}
+                  onReselect={() => setModelDialogOpen(true)}
+                  onDelete={() => dispatch({ type: "model_image_changed", image: null })}
+                />
+              </div>
 
               <div className="my-5 h-px bg-[#eceef2]" />
 
@@ -369,6 +399,20 @@ export function VideoRemake() {
           </section>
         </div>
       </div>
+      <ReferencePickerDialog
+        kind="model"
+        open={modelDialogOpen}
+        candidates={state.modelImage ? [state.modelImage] : []}
+        onClose={() => setModelDialogOpen(false)}
+        onUse={(asset) => {
+          dispatch({ type: "model_image_changed", image: asset });
+          setModelDialogOpen(false);
+        }}
+        api={{
+          submitCandidates: submitClothingCandidatesClient,
+          status: getClothingGenerationStatusClient,
+        }}
+      />
     </section>
   );
 }

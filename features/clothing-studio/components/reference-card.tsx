@@ -10,16 +10,17 @@ type Props = {
   onReselect?: () => void;
   onDelete: () => void;
   disabled?: boolean;
+  description?: string;
 };
 
-export function ReferenceCard({ kind, value, onUpload, onGenerate, onReselect, onDelete, disabled = false }: Props) {
+export function ReferenceCard({ kind, value, onUpload, onGenerate, onReselect, onDelete, disabled = false, description }: Props) {
   const name = kind === "model" ? "模特图" : "场景图";
   return (
     <section className="rounded-2xl border border-[#e0e2e7] bg-white p-4">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">{name}</p>
-          <p className="mt-1 text-xs text-[#7a7f89]">{kind === "model" ? "必选 · 全组保持同一模特" : "可选 · 统一整组场景风格"}</p>
+          <p className="mt-1 text-xs text-[#7a7f89]">{description ?? (kind === "model" ? "必选 · 全组保持同一模特" : "可选 · 统一整组场景风格")}</p>
         </div>
         {value && <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700">已选择</span>}
       </div>

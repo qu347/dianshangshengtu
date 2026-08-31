@@ -6,11 +6,11 @@ import { resolveKeyframeUrl } from "@/features/video-remake/lib/keyframe";
 import { clipDownloadUrl } from "@/features/video-remake/lib/urls";
 import { languageDisplayName } from "@/lib/grsai/video-script";
 import { GrsaiError } from "@/lib/grsai/errors";
+import { resolveClothingReference } from "@/lib/clothing-reference";
 import { signKeyframeUrl, signVideoJobToken } from "@/lib/download-token";
 import { submitVideoTask, VideoApiError, VIDEO_QUALITY_MODELS } from "@/lib/jimeng/video";
 import {
   PayloadTooLargeError,
-  hasMatchingImageSignature,
   readBoundedFormData,
   validateProductImages,
   validateProductPostRequest,
@@ -45,13 +45,16 @@ export async function POST(request: Request) {
     if ("error" in validatedImages) return Response.json(validatedImages, { status: 400 });
     const { images } = validatedImages;
 
-    const modelImage = form.get("modelImage");
     let modelDataUrl: string | undefined;
-    if (modelImage instanceof File && modelImage.size > 0) {
-      if (modelImage.size > 5 * 1024 * 1024 || !(await hasMatchingImageSignature(modelImage))) {
-        return errorResponse("模特参考图格式或大小不符合要求", 400);
-      }
-      modelDataUrl = `data:${modelImage.type};base64,${Buffer.from(await modelImage.arrayBuffer()).toString("base64")}`;
+    try {
+      modelDataUrl = await resolveClothingReference(form, {
+        fileField: "modelImage",
+        tokenField: "modelToken",
+        label: "模特参考图",
+        required: false,
+      }, tokenSecret);
+    } catch (error) {
+      return errorResponse(error instanceof Error ? error.message : "模特参考图来源无效", 400);
     }
 
     let scene: ReturnType<typeof SceneScriptSchema.parse>;

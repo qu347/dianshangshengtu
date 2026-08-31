@@ -3,10 +3,12 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { verifyMediaToken, verifyVideoJobToken } from "@/lib/download-token";
 import { resolveKeyframeUrl } from "@/features/video-remake/lib/keyframe";
+import { resolveClothingReference } from "@/lib/clothing-reference";
 import { submitVideoTask, VideoApiError } from "@/lib/jimeng/video";
 import { POST } from "./route";
 
 vi.mock("@/features/video-remake/lib/keyframe", () => ({ resolveKeyframeUrl: vi.fn() }));
+vi.mock("@/lib/clothing-reference", () => ({ resolveClothingReference: vi.fn() }));
 vi.mock("@/lib/jimeng/video", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/jimeng/video")>();
   return { ...actual, submitVideoTask: vi.fn() };
@@ -38,6 +40,7 @@ beforeEach(() => {
   process.env.DOWNLOAD_TOKEN_SECRET = "download-secret";
   process.env.VIDEO_API_KEY = "video-key";
   vi.mocked(resolveKeyframeUrl).mockResolvedValue("https://cdn.example/kf.png");
+  vi.mocked(resolveClothingReference).mockResolvedValue(undefined);
   vi.mocked(submitVideoTask).mockResolvedValue("provider-task-1");
 });
 
@@ -102,6 +105,39 @@ it("submits the video task with the resolved keyframe and returns a signed runni
     kind: "keyframe",
     url: "https://cdn.example/kf.png",
   });
+});
+
+it("resolves an AI-generated model token into the keyframe references", async () => {
+  const form = generateForm();
+  form.append("modelToken", "signed-model-token");
+  vi.mocked(resolveClothingReference).mockResolvedValueOnce("data:image/png;base64,bW9kZWw=");
+
+  const response = await POST(new Request("http://localhost/api/video-remake/generate", {
+    method: "POST",
+    body: form,
+    headers: { "X-Product-Studio-Request": "1" },
+  }));
+
+  expect(response.status).toBe(200);
+  expect(resolveKeyframeUrl).toHaveBeenCalledWith(expect.objectContaining({
+    images: [expect.stringMatching(/^data:image\/webp;base64,/), "data:image/png;base64,bW9kZWw="],
+  }));
+});
+
+it("rejects an invalid AI-generated model token", async () => {
+  const form = generateForm();
+  form.append("modelToken", "invalid-model-token");
+  vi.mocked(resolveClothingReference).mockRejectedValueOnce(new Error("模特参考图来源无效"));
+
+  const response = await POST(new Request("http://localhost/api/video-remake/generate", {
+    method: "POST",
+    body: form,
+    headers: { "X-Product-Studio-Request": "1" },
+  }));
+
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: "模特参考图来源无效" });
+  expect(resolveKeyframeUrl).not.toHaveBeenCalled();
 });
 
 it("returns a retryable failed task when the keyframe cannot be resolved", async () => {
