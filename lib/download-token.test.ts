@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { ImageRenderConfig } from "./image-render-config";
 import {
   signDownloadUrl,
+  signClipUrl,
+  signVideoJobToken,
   signJobToken,
   verifyDownloadToken,
+  verifyClipToken,
   verifyJobToken,
+  verifyVideoJobToken,
 } from "./download-token";
 
 const render: ImageRenderConfig = {
@@ -190,5 +194,26 @@ describe("render-context tokens", () => {
       });
       expect(() => verifyJobToken(token, "secret", 120)).toThrow("任务令牌无效");
     }
+  });
+});
+
+describe("video task and clip tokens", () => {
+  it("round-trips a video job and its HTTPS clip token", () => {
+    const job = signVideoJobToken({
+      providerTaskId: "video-task-1",
+      sceneId: "2",
+      aspectRatio: "9:16",
+      keyframeUrl: "https://cdn.example/keyframe.png",
+    }, "secret", 100);
+    const clip = signClipUrl("https://cdn.example/clip.mp4", "secret", 100, 60);
+
+    expect(verifyVideoJobToken(job, "secret", 120)).toEqual({
+      providerTaskId: "video-task-1",
+      sceneId: "2",
+      aspectRatio: "9:16",
+      keyframeUrl: "https://cdn.example/keyframe.png",
+    });
+    expect(verifyClipToken(clip, "secret", 120)).toEqual({ url: "https://cdn.example/clip.mp4" });
+    expect(() => verifyClipToken(job, "secret", 120)).toThrow("媒体令牌无效");
   });
 });

@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import {
   fetchPublicImage,
+  fetchPublicVideo,
   requestPinnedHttps,
   type ResolvedAddress,
 } from "./remote-image";
@@ -128,6 +129,28 @@ describe("fetchPublicImage", () => {
     await expect(fetchPublicImage("https://cdn.example/unsupported", options)).rejects.toThrow("图片下载失败");
     await expect(fetchPublicImage("https://cdn.example/oversized", options)).rejects.toThrow("图片响应过大");
     expect(cancelled).toBe(2);
+  });
+});
+
+describe("fetchPublicVideo", () => {
+  it("uses the validated public DNS answer and only accepts mp4 bytes", async () => {
+    const address: ResolvedAddress = { address: "93.184.216.34", family: 4 };
+    const transport = vi.fn().mockResolvedValue(new Response(Buffer.from("mp4"), {
+      status: 200,
+      headers: { "Content-Type": "video/mp4" },
+    }));
+
+    const result = await fetchPublicVideo("https://cdn.example/clip.mp4", {
+      lookup: vi.fn().mockResolvedValue([address]),
+      transport,
+    });
+
+    expect(result).toEqual(Buffer.from("mp4"));
+    expect(transport).toHaveBeenCalledWith(
+      new URL("https://cdn.example/clip.mp4"),
+      address,
+      expect.any(AbortSignal),
+    );
   });
 });
 

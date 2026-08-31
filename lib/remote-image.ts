@@ -243,3 +243,38 @@ export async function fetchPublicImage(
   }
   return readBoundedBody(response, options.maxBytes ?? DEFAULT_MAX_IMAGE_BYTES);
 }
+
+const DEFAULT_MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+const SUPPORTED_VIDEO_CONTENT_TYPES = new Set(["video/mp4"]);
+
+export async function fetchPublicVideo(
+  sourceUrl: string,
+  options: {
+    lookup?: LookupImplementation;
+    transport?: ImageTransport;
+    maxBytes?: number;
+    signal?: AbortSignal;
+  } = {},
+) {
+  const url = new URL(sourceUrl);
+  if (url.protocol !== "https:" || url.username || url.password) {
+    throw new Error("仅允许 HTTPS 视频地址");
+  }
+  const timeoutSignal = AbortSignal.timeout(60_000);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, timeoutSignal])
+    : timeoutSignal;
+  const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  const addresses = await waitWithAbort((options.lookup ?? defaultLookup)(hostname), signal);
+  if (addresses.length === 0 || addresses.some((address) => !isPublicAddress(address))) {
+    throw new Error("视频地址必须解析到公开网络地址");
+  }
+
+  const response = await (options.transport ?? requestPinnedHttps)(url, addresses[0], signal);
+  const contentType = response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
+  if (!response.ok || !contentType || !SUPPORTED_VIDEO_CONTENT_TYPES.has(contentType)) {
+    await response.body?.cancel("视频响应无效");
+    throw new Error("视频下载失败，请稍后重试");
+  }
+  return readBoundedBody(response, options.maxBytes ?? DEFAULT_MAX_VIDEO_BYTES);
+}

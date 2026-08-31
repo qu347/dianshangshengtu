@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 export function AppShell({ active, children }: {
-  active: "product-studio" | "clothing-studio";
+  active: "product-studio" | "video-remake" | "clothing-studio";
   children: ReactNode;
 }) {
   return (
@@ -23,6 +23,13 @@ export function AppShell({ active, children }: {
               className={active === "product-studio" ? "shrink-0 rounded-lg bg-[#17191d] px-3.5 py-2 text-sm text-white shadow-sm" : "shrink-0 rounded-lg px-3.5 py-2 text-sm text-[#626773]"}
             >
               全品类商品图
+            </Link>
+            <Link
+              href="/video-remake"
+              aria-current={active === "video-remake" ? "page" : undefined}
+              className={active === "video-remake" ? "shrink-0 rounded-lg bg-[#17191d] px-3.5 py-2 text-sm text-white shadow-sm" : "shrink-0 rounded-lg px-3.5 py-2 text-sm text-[#626773]"}
+            >
+              爆款视频复刻
             </Link>
             <span className="shrink-0 rounded-lg px-3.5 py-2 text-sm text-[#9a9ea7]">服装组图</span>
           </nav>

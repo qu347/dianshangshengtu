@@ -96,7 +96,22 @@ function decodeCanonicalBase64Url(part: string, invalidMessage: string) {
   return decoded;
 }
 
-function signPayload(payload: DownloadPayload | JobPayload, secret: string) {
+type VideoJobPayload = {
+  kind: "video-job";
+  providerTaskId: string;
+  sceneId: string;
+  aspectRatio: string;
+  keyframeUrl: string;
+  exp: number;
+};
+
+type ClipPayload = {
+  kind: "clip";
+  url: string;
+  exp: number;
+};
+
+function signPayload(payload: DownloadPayload | JobPayload | VideoJobPayload | ClipPayload, secret: string) {
   const payloadPart = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signaturePart = signatureFor(payloadPart, secret).toString("base64url");
   return `${payloadPart}.${signaturePart}`;
@@ -232,4 +247,88 @@ export function verifyJobToken(
   }
   requireUnexpired(payload.exp, nowSeconds, "任务令牌已过期");
   return { providerJobId: payload.providerJobId, render: payload.render };
+}
+
+const VIDEO_JOB_TOKEN_TTL_SECONDS = 2 * 60 * 60;
+const CLIP_TOKEN_TTL_SECONDS = 60 * 60;
+
+export type VideoJobToken = string & { readonly videoJobTokenBrand: true };
+export type ClipToken = string & { readonly clipTokenBrand: true };
+
+function isBoundedShortText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= 32;
+}
+
+function isBoundedUrl(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 1024 && isHttpsUrl(value);
+}
+
+export function signVideoJobToken(
+  input: { providerTaskId: string; sceneId: string; aspectRatio: string; keyframeUrl: string },
+  secret: string,
+  nowSeconds = Math.floor(Date.now() / 1_000),
+): VideoJobToken {
+  if (
+    !isBoundedShortText(input.providerTaskId)
+    || !isBoundedId(input.sceneId)
+    || !isBoundedShortText(input.aspectRatio)
+    || !isBoundedUrl(input.keyframeUrl)
+  ) {
+    throw new Error("视频任务令牌无效");
+  }
+  return signPayload({
+    kind: "video-job",
+    providerTaskId: input.providerTaskId,
+    sceneId: input.sceneId,
+    aspectRatio: input.aspectRatio,
+    keyframeUrl: input.keyframeUrl,
+    exp: nowSeconds + VIDEO_JOB_TOKEN_TTL_SECONDS,
+  }, secret) as VideoJobToken;
+}
+
+export function verifyVideoJobToken(
+  token: string,
+  secret: string,
+  nowSeconds = Math.floor(Date.now() / 1_000),
+): { providerTaskId: string; sceneId: string; aspectRatio: string; keyframeUrl: string } {
+  const payload = verifySignedPayload(token, secret, "视频任务令牌无效");
+  if (
+    payload.kind !== "video-job"
+    || !isBoundedShortText(payload.providerTaskId)
+    || !isBoundedId(payload.sceneId)
+    || !isBoundedShortText(payload.aspectRatio)
+    || !isBoundedUrl(payload.keyframeUrl)
+  ) {
+    throw new Error("视频任务令牌无效");
+  }
+  requireUnexpired(payload.exp, nowSeconds, "视频任务令牌已过期");
+  return {
+    providerTaskId: payload.providerTaskId,
+    sceneId: payload.sceneId,
+    aspectRatio: payload.aspectRatio,
+    keyframeUrl: payload.keyframeUrl,
+  };
+}
+
+export function signClipUrl(
+  url: string,
+  secret: string,
+  nowSeconds = Math.floor(Date.now() / 1_000),
+  ttlSeconds = CLIP_TOKEN_TTL_SECONDS,
+): ClipToken {
+  requireHttps(url);
+  return signPayload({ kind: "clip", url, exp: nowSeconds + ttlSeconds }, secret) as ClipToken;
+}
+
+export function verifyClipToken(
+  token: string,
+  secret: string,
+  nowSeconds = Math.floor(Date.now() / 1_000),
+): { url: string } {
+  const payload = verifySignedPayload(token, secret, "媒体令牌无效");
+  if (payload.kind !== "clip" || typeof payload.url !== "string" || !isHttpsUrl(payload.url)) {
+    throw new Error("媒体令牌无效");
+  }
+  requireUnexpired(payload.exp, nowSeconds, "媒体令牌已过期");
+  return { url: payload.url };
 }
