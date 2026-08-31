@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { runShotBatch } from "./intro-runner";
+import { pollShotJob, runShotBatch } from "./intro-runner";
 
 const shots = [
   { id: "1", title: "开场", description: "商品特写", onScreenText: "", durationSec: 5 },
@@ -76,4 +76,47 @@ it.each(["queued", "submitting"] as const)("polls a %s submission until it reach
 
   expect(poll).toHaveBeenCalledWith("job-1", "1", controller.signal);
   expect(results).toMatchObject([{ shotId: "1", status: "succeeded", downloadToken: "download-token" }]);
+});
+
+it("keeps polling queued, submitting, and running statuses with the same signal until success", async () => {
+  const controller = new AbortController();
+  const status = vi.fn()
+    .mockResolvedValueOnce({ shotId: "1", status: "queued" as const, progress: 0, providerJobId: "job-1" })
+    .mockResolvedValueOnce({ shotId: "1", status: "submitting" as const, progress: 10, providerJobId: "job-1" })
+    .mockResolvedValueOnce({ shotId: "1", status: "running" as const, progress: 50, providerJobId: "job-1" })
+    .mockResolvedValueOnce({ shotId: "1", status: "succeeded" as const, progress: 100, resultUrl: "https://cdn.example/clip.mp4", downloadToken: "download-token" });
+  const sleep = vi.fn(async () => {});
+
+  const result = await pollShotJob({
+    providerJobId: "job-1",
+    shotId: "1",
+    api: { status },
+    onShotChange: vi.fn(),
+    signal: controller.signal,
+    sleep,
+  });
+
+  expect(status).toHaveBeenNthCalledWith(1, "job-1", "1", controller.signal);
+  expect(status).toHaveBeenNthCalledWith(2, "job-1", "1", controller.signal);
+  expect(status).toHaveBeenNthCalledWith(3, "job-1", "1", controller.signal);
+  expect(status).toHaveBeenNthCalledWith(4, "job-1", "1", controller.signal);
+  expect(sleep).toHaveBeenCalledTimes(3);
+  expect(result).toMatchObject({ shotId: "1", status: "succeeded", downloadToken: "download-token" });
+});
+
+it("stops immediately on a failed task", async () => {
+  const status = vi.fn().mockResolvedValue({ shotId: "1", status: "failed" as const, progress: 100, error: "任务失败" });
+  const sleep = vi.fn(async () => {});
+
+  const result = await pollShotJob({
+    providerJobId: "job-1",
+    shotId: "1",
+    api: { status },
+    onShotChange: vi.fn(),
+    sleep,
+  });
+
+  expect(status).toHaveBeenCalledOnce();
+  expect(sleep).not.toHaveBeenCalled();
+  expect(result).toMatchObject({ status: "failed", error: "任务失败" });
 });

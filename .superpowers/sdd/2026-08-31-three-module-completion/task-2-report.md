@@ -48,3 +48,11 @@
 - Runner behavior: queued, submitting, and running submit results with a provider job ID continue through the same signal-aware poller; a missing job ID becomes a retryable failed task instead of an incomplete final result.
 - Environment note: the focused RED command initially could not load Vitest because local `node_modules` had been emptied while `package-lock.json` was unchanged. `npm ci` restored the lockfile-exact dependency set; it changed no source or lockfile content.
 - Follow-up verification: Task 2 suite 14 files / 88 tests passed; video-remake shared regression 14 files / 59 tests passed; `npx tsc --noEmit` and `npm run build` passed.
+
+## P1 follow-up: poll every active provider status
+
+- Review finding: `pollShotJob` continued only `running`; a first `queued` or `submitting` poll response returned prematurely.
+- RED: `npx vitest run features/product-video/lib/intro-runner.test.ts --exclude '.worktrees/**'` — the new queued → submitting → running → succeeded sequence made one status request instead of four.
+- GREEN: same command — 1 file / 6 tests passed. The sequence confirms the same `AbortSignal` is passed to every status request, failed results terminate without sleep, and the existing cancellation test confirms abort prevents another poll.
+- Change: only `succeeded` and `failed` terminate `pollShotJob`; queued, submitting, and running preserve existing timeout, delay, and abort behavior.
+- Verification: Task 2 suite 14 files / 90 tests passed; shared video-remake regression 14 files / 59 tests passed; `npx tsc --noEmit` and `npm run build` passed.

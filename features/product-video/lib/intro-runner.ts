@@ -58,7 +58,7 @@ export async function pollShotJob(input: {
     // leaked token stops working right after this request.
     if (task.providerJobId && task.providerJobId !== jobToken) jobToken = task.providerJobId;
 
-    if (task.status !== "running") return task;
+    if (task.status === "succeeded" || task.status === "failed") return task;
     if (now() - startedAt >= timeoutMs) {
       const timedOut: VideoIntroTask = { ...task, status: "failed", error: "视频生成超时，请重试此镜头", providerJobId: jobToken };
       input.onShotChange(timedOut);
