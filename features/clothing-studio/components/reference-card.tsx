@@ -42,4 +42,3 @@ export function ReferenceCard({ kind, value, onUpload, onGenerate, onReselect, o
     </section>
   );
 }
-

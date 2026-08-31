@@ -21,11 +21,9 @@ function downloadFilename(url: string) {
   if (!candidate || candidate === "." || candidate === "..") candidate = "generated-image";
   return `${candidate}.png`;
 }
-
 function errorResponse(error: string, status: number) {
   return Response.json({ error }, { status, headers: RESPONSE_HEADERS });
 }
-
 export async function GET(request: Request) {
   const tokenSecret = process.env.DOWNLOAD_TOKEN_SECRET;
   if (!tokenSecret) return errorResponse("图片下载服务尚未配置", 503);
@@ -56,4 +54,3 @@ export async function GET(request: Request) {
     return errorResponse("图片下载失败，请稍后重试", 502);
   }
 }
-

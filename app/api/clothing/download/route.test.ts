@@ -23,11 +23,9 @@ beforeEach(() => {
   vi.mocked(fetchPublicImage).mockResolvedValue(Buffer.from("source"));
   vi.mocked(renderProductImage).mockResolvedValue(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
 });
-
 afterEach(() => {
   delete process.env.DOWNLOAD_TOKEN_SECRET;
 });
-
 it("verifies, safely fetches, and renders the same PNG pipeline as product downloads", async () => {
   const token = signDownloadUrl("https://cdn.example/result.webp", render, "test-secret");
   const response = await GET(new Request(
@@ -40,10 +38,8 @@ it("verifies, safely fetches, and renders the same PNG pipeline as product downl
   expect(response.headers.get("Content-Type")).toBe("image/png");
   expect(response.headers.get("Cache-Control")).toBe("private, no-store");
 });
-
 it("rejects a tampered token without fetching an upstream URL", async () => {
   const response = await GET(new Request("http://localhost/api/clothing/download?token=tampered"));
   expect(response.status).toBe(400);
   expect(fetchPublicImage).not.toHaveBeenCalled();
 });
-

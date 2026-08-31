@@ -12,7 +12,6 @@ it("offers explicit upload and generation actions before selection", async () =>
   expect(onUpload).toHaveBeenCalledOnce();
   expect(onGenerate).toHaveBeenCalledOnce();
 });
-
 it("shows a selected preview with reselect and delete actions", async () => {
   const onReselect = vi.fn();
   const onDelete = vi.fn();
@@ -30,4 +29,3 @@ it("shows a selected preview with reselect and delete actions", async () => {
   expect(onReselect).toHaveBeenCalledOnce();
   expect(onDelete).toHaveBeenCalledOnce();
 });
-

@@ -22,19 +22,16 @@ beforeEach(() => {
   process.env.DOWNLOAD_TOKEN_SECRET = "test-secret";
   vi.mocked(submitCandidateBatch).mockResolvedValue([]);
 });
-
 afterEach(() => {
   delete process.env.GRSAI_API_KEY;
   delete process.env.DOWNLOAD_TOKEN_SECRET;
 });
-
 it("validates the selected scene ratio and count", async () => {
   const invalid = await POST(post({ ...defaultSceneCandidateRequest, count: 0 }));
   expect(invalid.status).toBe(400);
   expect(await invalid.json()).toEqual({ error: "场景生成参数无效" });
   expect(submitCandidateBatch).not.toHaveBeenCalled();
 });
-
 it("passes the requested final ratio to scene generation", async () => {
   const request = { ...defaultSceneCandidateRequest, count: 3, aspectRatio: "1536x1024" as const };
   const response = await POST(post(request));
@@ -51,4 +48,3 @@ it("passes the requested final ratio to scene generation", async () => {
   const input = vi.mocked(submitCandidateBatch).mock.calls[0][0];
   expect(input.promptForIndex(0)).toContain("不出现人物、服装、商品");
 });
-

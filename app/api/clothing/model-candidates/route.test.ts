@@ -22,12 +22,10 @@ beforeEach(() => {
   process.env.DOWNLOAD_TOKEN_SECRET = "test-secret";
   vi.mocked(submitCandidateBatch).mockResolvedValue([]);
 });
-
 afterEach(() => {
   delete process.env.GRSAI_API_KEY;
   delete process.env.DOWNLOAD_TOKEN_SECRET;
 });
-
 it("rejects missing private header and invalid candidate count", async () => {
   expect((await POST(post(defaultModelCandidateRequest, {}))).status).toBe(403);
   const invalid = await POST(post({ ...defaultModelCandidateRequest, count: 5 }));
@@ -35,7 +33,6 @@ it("rejects missing private header and invalid candidate count", async () => {
   expect(await invalid.json()).toEqual({ error: "模特生成参数无效" });
   expect(submitCandidateBatch).not.toHaveBeenCalled();
 });
-
 it("uses the fixed portrait ratio and model candidate prompts", async () => {
   const response = await POST(post({ ...defaultModelCandidateRequest, count: 2 }));
 
@@ -52,7 +49,6 @@ it("uses the fixed portrait ratio and model candidate prompts", async () => {
   const input = vi.mocked(submitCandidateBatch).mock.calls[0][0];
   expect(input.promptForIndex(0)).toContain("全身照");
 });
-
 it("requires both service secrets before submitting", async () => {
   delete process.env.DOWNLOAD_TOKEN_SECRET;
   const response = await POST(post(defaultModelCandidateRequest));
@@ -60,4 +56,3 @@ it("requires both service secrets before submitting", async () => {
   expect(await response.json()).toEqual({ error: "图片生成服务尚未配置" });
   expect(submitCandidateBatch).not.toHaveBeenCalled();
 });
-

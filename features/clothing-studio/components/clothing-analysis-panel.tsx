@@ -29,4 +29,3 @@ export function ClothingAnalysisPanel({ analysis }: { analysis: ClothingAnalysis
     </section>
   );
 }
-

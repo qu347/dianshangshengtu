@@ -6,7 +6,6 @@ export async function fetchClothingResultBlob(token: string) {
   if (!response.ok) throw new Error("图片下载失败，请重试");
   return response.blob();
 }
-
 export async function createClothingResultsZip(
   tasks: ClothingGenerationTask[],
   fetchBlob = fetchClothingResultBlob,
@@ -20,7 +19,6 @@ export async function createClothingResultsZip(
   }));
   return zip.generateAsync({ type: "blob" });
 }
-
 function clickBlobDownload(blob: Blob, filename: string) {
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -32,7 +30,6 @@ function clickBlobDownload(blob: Blob, filename: string) {
     URL.revokeObjectURL(objectUrl);
   }
 }
-
 export async function downloadClothingResult(
   token: string,
   filename: string,
@@ -40,11 +37,9 @@ export async function downloadClothingResult(
 ) {
   clickBlobDownload(await fetchBlob(token), filename);
 }
-
 export async function downloadAllClothingResults(
   tasks: ClothingGenerationTask[],
   fetchBlob = fetchClothingResultBlob,
 ) {
   clickBlobDownload(await createClothingResultsZip(tasks, fetchBlob), "clothing-results.zip");
 }
-

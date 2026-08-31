@@ -4,4 +4,3 @@ import { ClothingStudio } from "@/features/clothing-studio/components/clothing-s
 export default function ClothingStudioPage() {
   return <AppShell active="clothing-studio"><ClothingStudio /></AppShell>;
 }
-

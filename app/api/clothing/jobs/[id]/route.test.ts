@@ -29,13 +29,11 @@ beforeEach(() => {
   process.env.DOWNLOAD_TOKEN_SECRET = "test-secret";
   vi.mocked(prepareGeneratedImageResult).mockImplementation(async ({ render }) => ({ ok: true, render }));
 });
-
 afterEach(() => {
   delete process.env.GRSAI_API_KEY;
   delete process.env.DOWNLOAD_TOKEN_SECRET;
   vi.useRealTimers();
 });
-
 it("queries the raw provider id and returns a same-origin clothing preview", async () => {
   const token = signJobToken("raw-job", finalRender, "test-secret");
   vi.mocked(getImageGenerationResult).mockResolvedValue({
@@ -53,7 +51,6 @@ it("queries the raw provider id and returns a same-origin clothing preview", asy
   expect(verifyDownloadToken(body.task.downloadToken, "test-secret").url)
     .toBe("https://cdn.example/result.png");
 });
-
 it("uses a two-hour result token for candidate jobs", async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-08-28T00:00:00Z"));
@@ -71,7 +68,6 @@ it("uses a two-hour result token for candidate jobs", async () => {
   expect(() => verifyDownloadToken(body.task.downloadToken, "test-secret", now + 7_199)).not.toThrow();
   expect(() => verifyDownloadToken(body.task.downloadToken, "test-secret", now + 7_201)).toThrow();
 });
-
 it("rejects a tampered job token before querying Grsai", async () => {
   const response = await GET(new Request("http://localhost/api/clothing/jobs/tampered"), {
     params: Promise.resolve({ id: "tampered" }),
@@ -79,4 +75,3 @@ it("rejects a tampered job token before querying Grsai", async () => {
   expect(response.status).toBe(400);
   expect(getImageGenerationResult).not.toHaveBeenCalled();
 });
-

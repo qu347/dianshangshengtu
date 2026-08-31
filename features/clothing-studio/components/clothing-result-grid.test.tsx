@@ -24,7 +24,6 @@ it("shows retry, continue-query, downloads, and several-minute guidance", () => 
   expect(screen.getByText(/生成可能需要几分钟/)).toBeVisible();
   expect(screen.getByRole("img", { name: items[2].title })).toHaveClass("object-contain");
 });
-
 it("disables recovered retries but keeps polling and download available", () => {
   const items = makeClothingAnalysis(3).plan;
   render(<ClothingResultGrid
@@ -45,7 +44,6 @@ it("disables recovered retries but keeps polling and download available", () => 
   expect(screen.getByRole("button", { name: "继续查询第 2 张" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "下载第 3 张" })).toBeEnabled();
 });
-
 it("restores focus after closing the large-image dialog", async () => {
   const user = userEvent.setup();
   const item = makeClothingAnalysis(1).plan[0];
@@ -62,4 +60,3 @@ it("restores focus after closing the large-image dialog", async () => {
   await user.click(screen.getByRole("button", { name: "关闭大图" }));
   expect(open).toHaveFocus();
 });
-

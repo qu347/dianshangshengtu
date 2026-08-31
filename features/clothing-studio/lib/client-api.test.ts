@@ -60,7 +60,6 @@ it("serializes uploaded and generated references through distinct multipart fiel
   expect(generatedForm.get("modelImage")).toBeNull();
   expect(fetchMock.mock.calls[0][1]?.headers).toEqual({ "X-Clothing-Studio-Request": "1" });
 });
-
 it("omits model references from image one and includes them with the main token later", async () => {
   const [first, second] = makeClothingAnalysis(2).plan;
   const taskResponse = (id: string) => new Response(JSON.stringify({
@@ -86,7 +85,6 @@ it("omits model references from image one and includes them with the main token 
   expect(secondForm.get("modelToken")).toBe("model-token");
   expect(secondForm.get("baseImageToken")).toBe("main-token");
 });
-
 it("routes candidate kinds correctly and URL-encodes opaque status tokens", async () => {
   const fetchMock = vi.fn()
     .mockResolvedValueOnce(new Response(JSON.stringify({ tasks: [] }), { status: 200 }))
@@ -107,4 +105,3 @@ it("routes candidate kinds correctly and URL-encodes opaque status tokens", asyn
   ]);
   expect(task.planItemId).toBe("candidate-1");
 });
-

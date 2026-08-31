@@ -10,7 +10,6 @@ it("accepts one through six supported garment images", () => {
   expect(validateGarmentFiles(Array.from({ length: 6 }, (_, index) => image(`${index}.webp`, "image/webp"))))
     .toEqual([]);
 });
-
 it("returns garment-specific count, type, and source-size errors", () => {
   expect(validateGarmentFiles([])).toContain("请至少上传 1 张服装图");
   expect(validateGarmentFiles(Array.from({ length: 7 }, (_, index) => image(`${index}.png`))))
@@ -19,7 +18,6 @@ it("returns garment-specific count, type, and source-size errors", () => {
   expect(validateGarmentFiles([image("large.png", "image/png", 15 * 1024 * 1024 + 1)]))
     .toContain("单张服装原图不能超过 15 MB");
 });
-
 it("corrects orientation, limits the longest edge to 2048, and returns WEBP", async () => {
   const close = vi.fn();
   vi.stubGlobal("createImageBitmap", vi.fn().mockResolvedValue({ width: 3000, height: 1500, close }));
@@ -33,4 +31,3 @@ it("corrects orientation, limits the longest edge to 2048, and returns WEBP", as
   expect(result).toMatchObject({ name: "large.webp", type: "image/webp" });
   expect(close).toHaveBeenCalled();
 });
-

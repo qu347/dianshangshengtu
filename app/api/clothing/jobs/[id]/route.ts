@@ -11,7 +11,6 @@ function inlineResultUrl(requestUrl: string, token: string) {
   url.searchParams.set("inline", "1");
   return url.toString();
 }
-
 export async function GET(request: Request, context: RouteContext) {
   const tokenSecret = process.env.DOWNLOAD_TOKEN_SECRET;
   if (!process.env.GRSAI_API_KEY || !tokenSecret) {
@@ -85,4 +84,3 @@ export async function GET(request: Request, context: RouteContext) {
     return Response.json({ error: "获取图片生成结果失败，请稍后重试" }, { status: 500 });
   }
 }
-

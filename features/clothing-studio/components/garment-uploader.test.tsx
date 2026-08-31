@@ -18,4 +18,3 @@ it("rejects more than six garment files and supports removing a selected thumbna
   await userEvent.click(screen.getByRole("button", { name: "移除 dress.png" }));
   expect(onFilesChanged).toHaveBeenCalledWith([]);
 });
-

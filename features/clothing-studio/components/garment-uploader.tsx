@@ -20,7 +20,6 @@ function Preview({ file }: { file: File }) {
   // eslint-disable-next-line @next/next/no-img-element
   return <img ref={imageRef} alt={file.name} className="size-20 rounded-xl object-cover" />;
 }
-
 export function GarmentUploader({ files, onFilesChanged, disabled = false }: GarmentUploaderProps) {
   const [error, setError] = useState<string | null>(null);
 
@@ -78,4 +77,3 @@ export function GarmentUploader({ files, onFilesChanged, disabled = false }: Gar
     </div>
   );
 }
-

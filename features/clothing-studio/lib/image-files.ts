@@ -14,7 +14,6 @@ export function validateGarmentFiles(files: File[]) {
   }
   return errors;
 }
-
 export async function preprocessClothingImage(file: File) {
   let bitmap: ImageBitmap | undefined;
   let source: CanvasImageSource;
@@ -62,4 +61,3 @@ export async function preprocessClothingImage(file: File) {
     bitmap?.close();
   }
 }
-

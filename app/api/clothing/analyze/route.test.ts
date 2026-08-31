@@ -50,12 +50,10 @@ beforeEach(() => {
     .mockResolvedValueOnce(undefined);
   vi.mocked(analyzeClothing).mockResolvedValue(makeClothingAnalysis(2));
 });
-
 afterEach(() => {
   delete process.env.GRSAI_API_KEY;
   delete process.env.DOWNLOAD_TOKEN_SECRET;
 });
-
 it("converts garments and resolves exactly one model plus an optional scene", async () => {
   const response = await POST(request(form()));
 
@@ -70,13 +68,11 @@ it("converts garments and resolves exactly one model plus an optional scene", as
   });
   expect(resolveClothingReference).toHaveBeenCalledTimes(2);
 });
-
 it("rejects missing or excessive garments before calling the provider", async () => {
   expect((await POST(request(form({ garmentCount: 0 })))).status).toBe(400);
   expect((await POST(request(form({ garmentCount: 7 })))).status).toBe(400);
   expect(analyzeClothing).not.toHaveBeenCalled();
 });
-
 it("returns 413 when the streamed multipart body exceeds 48 MB", async () => {
   vi.mocked(readBoundedClothingFormData).mockRejectedValueOnce(new ClothingPayloadTooLargeError());
 
@@ -86,7 +82,6 @@ it("returns 413 when the streamed multipart body exceeds 48 MB", async () => {
   expect(await response.json()).toEqual({ error: "请求体不能超过 48 MB" });
   expect(analyzeClothing).not.toHaveBeenCalled();
 });
-
 it("rejects invalid settings and an invalid model source", async () => {
   const invalidSettings = await POST(request(form({
     settings: { ...defaultClothingSettings, imageCount: 17 },
@@ -100,4 +95,3 @@ it("rejects invalid settings and an invalid model source", async () => {
   expect(await invalidModel.json()).toEqual({ error: "模特图或场景图来源无效" });
   expect(analyzeClothing).not.toHaveBeenCalled();
 });
-

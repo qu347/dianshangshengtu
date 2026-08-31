@@ -84,4 +84,3 @@ export function ClothingResultGrid({ items, tasks, onRetry, onContinuePolling, o
     </section>
   );
 }
-

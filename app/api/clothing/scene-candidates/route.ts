@@ -33,4 +33,3 @@ export async function POST(request: Request) {
     return Response.json({ error: "场景图生成提交失败，请稍后重试" }, { status: 500 });
   }
 }
-

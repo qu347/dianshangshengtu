@@ -56,4 +56,3 @@ export function ClothingSettingsForm({ value, onChange, disabled = false }: Prop
     </div>
   );
 }
-

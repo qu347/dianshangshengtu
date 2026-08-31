@@ -26,7 +26,6 @@ it("invalidates analysis and tasks when any generation input changes", () => {
   });
   expect(afterRequirements.analysis).toBeNull();
 });
-
 it("moves through analysis and two-stage generation phases", () => {
   let state = clothingStudioReducer(initialClothingStudioState, { type: "analysis_started" });
   expect(state.phase).toBe("analyzing");
@@ -40,7 +39,6 @@ it("moves through analysis and two-stage generation phases", () => {
   expect(state.phase).toBe("completed");
   expect(state.settings).toEqual(defaultClothingSettings);
 });
-
 it("restores a saved workspace without fabricating files or candidate history", () => {
   const state = clothingStudioReducer(initialClothingStudioState, {
     type: "session_restored",
@@ -56,4 +54,3 @@ it("restores a saved workspace without fabricating files or candidate history", 
   expect(state.selectedModel).toBeNull();
   expect(state.recovered).toBe(true);
 });
-

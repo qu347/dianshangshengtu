@@ -26,11 +26,9 @@ const StoredSessionSchema = z.object({
 function browserStorage(storage?: Storage) {
   return storage ?? window.sessionStorage;
 }
-
 export function saveClothingSession(session: ClothingSession, storage?: Storage) {
   browserStorage(storage).setItem(SESSION_KEY, JSON.stringify(session));
 }
-
 export function loadClothingSession(storage?: Storage) {
   try {
     const raw = browserStorage(storage).getItem(SESSION_KEY);
@@ -42,8 +40,6 @@ export function loadClothingSession(storage?: Storage) {
     return null;
   }
 }
-
 export function clearClothingSession(storage?: Storage) {
   browserStorage(storage).removeItem(SESSION_KEY);
 }
-

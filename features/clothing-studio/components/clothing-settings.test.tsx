@@ -13,7 +13,6 @@ it("exposes exactly 1 through 16 results and all quality values", () => {
   const quality = screen.getByLabelText("图片质量") as HTMLSelectElement;
   expect(Array.from(quality.options).map((option) => option.value)).toEqual(["auto", "low", "medium", "high"]);
 });
-
 it("maps Amazon to English and Ozon to Russian", async () => {
   const onChange = vi.fn();
   render(<ClothingSettingsForm value={defaultClothingSettings} onChange={onChange} />);
@@ -23,4 +22,3 @@ it("maps Amazon to English and Ozon to Russian", async () => {
   expect(onChange).toHaveBeenLastCalledWith({ platform: "ozon", language: "ru" });
   expect(screen.queryByText("产品尺寸")).not.toBeInTheDocument();
 });
-
